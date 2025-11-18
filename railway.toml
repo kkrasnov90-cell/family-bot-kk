@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python bot/main.py"
+
+[[services]]
+name = "postgresql"
+type = "postgresql"
