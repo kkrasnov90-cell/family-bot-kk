@@ -120,6 +120,31 @@ class FamilyBot:
         print("📋 Доступные команды: /start, /today, /test_notify, /list, /add_member")
         self.application.run_polling()
 
+# --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ (ШАГ 3) ---
+from database.models import Base, FamilyMember
+from database.connection import engine, SessionLocal
+
+# Создаём таблицы
+Base.metadata.create_all(bind=engine)
+
+# Добавляем семью при первом запуске
+def seed_family():
+    db = SessionLocal()
+    try:
+        if db.query(FamilyMember).count() == 0:
+            names = ["Кирилл", "Екатерина", "Ксения"]
+            for name in names:
+                db.add(FamilyMember(name=name))
+            db.commit()
+            print("✅ Семья добавлена в базу")
+        else:
+            print("ℹ️ Семья уже существует")
+    finally:
+        db.close()
+
+seed_family()
+# --- 🚀 КОНЕЦ ИНИЦИАЛИЗАЦИИ ---
+
 
 if __name__ == "__main__":
     bot = FamilyBot()
