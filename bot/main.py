@@ -135,25 +135,27 @@ class FamilyBot:
 
     def run(self):
         """Запускаем бота через webhook"""
-        PORT = int(os.environ.get("PORT", 8080))
+        # PORT = int(os.environ.get("PORT", 8080))
         # 1. Генерируем секрет
-        WEBHOOK_SECRET = secrets.token_hex(32)
-        # 2. Создаем путь, который будет слушать наше приложение
-        # Используем часть секретной строки, чтобы путь был уникальным и безопасным
-        PATH = f"/{WEBHOOK_SECRET}" # Например: /5a3b2c1d...
-        # старое.Railway автоматически даёт домен вида: https://<project>.up.railway.app
-        WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app{PATH}"
+        # WEBHOOK_SECRET = secrets.token_hex(32)
+        # # 2. Создаем путь, который будет слушать наше приложение
+        # # Используем часть секретной строки, чтобы путь был уникальным и безопасным
+        # PATH = f"/{WEBHOOK_SECRET}" # Например: /5a3b2c1d...
+        # # старое.Railway автоматически даёт домен вида: https://<project>.up.railway.app
+        # WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app{PATH}"
+        print("📡 Запуск бота через Long Polling...")
+        self.application.run_polling()
 
-        print(f"📡 Запуск webhook на порту {PORT}")
-        print(f"🔗 Webhook URL: {WEBHOOK_URL}")
+        # print(f"📡 Запуск webhook на порту {PORT}")
+        # print(f"🔗 Webhook URL: {WEBHOOK_URL}")
 
-        self.application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=PATH,
-            webhook_url=WEBHOOK_URL,
-            secret_token=WEBHOOK_SECRET  # исправвлен
-        )
+        # self.application.run_webhook(
+        #     listen="0.0.0.0",
+        #     port=PORT,
+        #     url_path=PATH,
+        #     webhook_url=WEBHOOK_URL,
+        #     secret_token=WEBHOOK_SECRET  # исправвлен
+        # )
 
 
 if __name__ == "__main__":
