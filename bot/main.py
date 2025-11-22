@@ -136,9 +136,13 @@ class FamilyBot:
     def run(self):
         """Запускаем бота через webhook"""
         PORT = int(os.environ.get("PORT", 8080))
+        # 1. Генерируем секрет
         WEBHOOK_SECRET = secrets.token_hex(32)
-        # Railway автоматически даёт домен вида: https://<project>.up.railway.app
-        WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app/"
+        # 2. Создаем путь, который будет слушать наше приложение
+        # Используем часть секретной строки, чтобы путь был уникальным и безопасным
+        PATH = f"/{WEBHOOK_SECRET}" # Например: /5a3b2c1d...
+        # старое.Railway автоматически даёт домен вида: https://<project>.up.railway.app
+        WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app{PATH}"
 
         print(f"📡 Запуск webhook на порту {PORT}")
         print(f"🔗 Webhook URL: {WEBHOOK_URL}")
@@ -146,6 +150,7 @@ class FamilyBot:
         self.application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
+            url_path=PATH,
             webhook_url=WEBHOOK_URL,
             secret_token=WEBHOOK_SECRET  # исправвлен
         )
