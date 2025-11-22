@@ -1,6 +1,7 @@
 import sys
 import os
 from datetime import date
+import secrets
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -135,6 +136,7 @@ class FamilyBot:
     def run(self):
         """Запускаем бота через webhook"""
         PORT = int(os.environ.get("PORT", 8080))
+        WEBHOOK_SECRET = secrets.token_hex(32)
         # Railway автоматически даёт домен вида: https://<project>.up.railway.app
         WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app/{Config.BOT_TOKEN}"
 
@@ -145,7 +147,7 @@ class FamilyBot:
             listen="0.0.0.0",
             port=PORT,
             webhook_url=WEBHOOK_URL,
-            secret_token=Config.BOT_TOKEN  # Защита от подделки запросов
+            secret_token=WEBHOOK_SECRET  # исправвлен
         )
 
 
