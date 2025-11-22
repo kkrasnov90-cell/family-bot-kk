@@ -1,5 +1,6 @@
 import sys
 import os
+from datetime import date
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,8 +20,9 @@ def seed_family():
     try:
         if db.query(FamilyMember).count() == 0:
             names = ["Кирилл", "Екатерина", "Ксения"]
+            default_bday = date.today()
             for name in names:
-                db.add(FamilyMember(name=name))
+                db.add(FamilyMember(name=name, birth_date=default_bday))
             db.commit()
             print("✅ Семья добавлена в базу")
         else:
