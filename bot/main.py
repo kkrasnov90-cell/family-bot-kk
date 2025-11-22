@@ -21,26 +21,17 @@ Base.metadata.create_all(bind=engine)
 def seed_family():
     db = SessionLocal()
     try:
-        # ⚠️ ВРЕМЕННЫЙ СКРИПТ ДЛЯ ОЧИСТКИ И ПЕРЕ-ИНИЦИАЛИЗАЦИИ
-        print("⚠️ ВРЕМЕННОЕ УДАЛЕНИЕ ВСЕХ ЗАПИСЕЙ (включая Римму)...")
-        db.query(FamilyMember).delete()
-        db.commit()
-        print("✅ Все старые записи удалены.")
-        
-        # ДОБАВЛЯЕМ ТОЛЬКО КИРИЛЛА (АДМИНА)
-        initial_members = [
-            # Используем корректную дату рождения
-            ("Кирилл", date(1990, 4, 11)),      
-        ]
-        
-        for name, bday in initial_members:
-            db.add(FamilyMember(name=name, birth_date=bday))
-        db.commit()
-        print("✅ Инициализация завершена: добавлен только Кирилл с корректной датой.")
-
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Ошибка при инициализации базы: {e}")
+        # ФИНАЛЬНЫЙ БЕЗОПАСНЫЙ СКРИПТ: запускается только если база ПУСТА
+        if db.query(FamilyMember).count() == 0:
+            initial_members = [
+                ("Кирилл", date(1990, 4, 11)),
+            ]
+            for name, bday in initial_members:
+                db.add(FamilyMember(name=name, birth_date=bday))
+            db.commit()
+            print("✅ Семья добавлена в базу (инициализация).")
+        else:
+            print("ℹ️ Семья уже существует")
     finally:
         db.close()
 
