@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, JSON, Enum, func
-from datetime import datetime
+from sqlalchemy.orm import Mapped, mapped_column # <--- ДОБАВЛЕНО
+from datetime import date, datetime # <--- ИСПРАВЛЕНО: добавлена Mapped, date, datetime
 import enum
 from .connection import Base
-
 
 class EventType(enum.Enum):
     """Типы событий для нашего бота"""
@@ -13,14 +13,17 @@ class EventType(enum.Enum):
 
 
 class FamilyMember(Base):
-    """Модель члена семьи"""
-    __tablename__ = "family_members"
+    __tablename__ = 'family_members'
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)  # Имя члена семьи
-    birth_date = Column(Date, nullable=False)  # Дата рождения
-    telegram_id = Column(String(50), nullable=True)  # ID в Telegram (опционально)
-    created_at = Column(Date, default=func.now())  # 🎯 ИСПРАВЛЕНО!
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    birth_date: Mapped[date] = mapped_column(Date)
+    
+    # НОВОЕ ПОЛЕ: Для хранения ID файла фотографии в Telegram
+    photo_file_id: Mapped[str | None] = mapped_column(String, nullable=True) 
+
+    def __repr__(self) -> str:
+        return f"FamilyMember(id={self.id!r}, name={self.name!r})"
 
 
 class FamilyEvent(Base):
