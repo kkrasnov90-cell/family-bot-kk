@@ -2,16 +2,17 @@ import sys
 import os
 from datetime import date
 import secrets
+import asyncio
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from telegram.ext import Application, CommandHandler
+from apscheduler.schedulers.background import BackgroundScheduler # <-- ИМПОРТ ПЛАНИРОВЩИКА
 from database.connection import SessionLocal, engine
 from database.models import Base, FamilyMember
 from services.notification_service import NotificationService
 from config import Config
-import asyncio
 
 # --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 Base.metadata.create_all(bind=engine)
@@ -37,6 +38,7 @@ seed_family()
 
 class FamilyBot:
     def __init__(self):
+        # Используем токен из Config для создания приложения
         self.application = Application.builder().token(Config.BOT_TOKEN).build()
         self.setup_handlers()
 
@@ -47,6 +49,8 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("test_notify", self.test_notify))
         self.application.add_handler(CommandHandler("add_member", self.add_member))
         self.application.add_handler(CommandHandler("list", self.list_members))
+
+    # --- ХЕНДЛЕРЫ КОМАНД ---
 
     async def start(self, update, context):
         await update.message.reply_text(
@@ -88,7 +92,6 @@ class FamilyBot:
 
             message = "👥 Члены семьи:\n\n"
             for member in members:
-                # Если в модели есть birth_date — используем его
                 if hasattr(member, 'birth_date') and member.birth_date:
                     age = service.calculate_age(member.birth_date)
                     message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age} лет)\n"
@@ -101,6 +104,8 @@ class FamilyBot:
             await update.message.reply_text("❌ Ошибка при получении данных")
         finally:
             db.close()
+
+    # --- ЛОГИКА УВЕДОМЛЕНИЙ И ПЛАНИРОВЩИК ---
 
     async def send_today_events(self, chat_id):
         db = SessionLocal()
@@ -126,36 +131,52 @@ class FamilyBot:
                 await asyncio.sleep(0.5)
 
         except Exception as e:
+            # Выводим ошибку в консоль для отладки
+            print(f"❌ Ошибка при отправке уведомления в чат {chat_id}: {e}")
             await self.application.bot.send_message(
                 chat_id=chat_id,
-                text="❌ Ошибка при получении данных"
+                text="❌ Ошибка при получении данных для уведомления"
             )
         finally:
             db.close()
 
+    def schedule_daily_notifications(self):
+        """Настраивает ежедневное уведомление в 9:00 UTC с помощью APScheduler."""
+        scheduler = BackgroundScheduler()
+
+        # Планируем вызов асинхронной функции send_daily_reminder
+        # Планировщик использует время UTC (время сервера Railway).
+        scheduler.add_job(
+            self.send_daily_reminder,
+            'cron',
+            hour=9, # 9:00 UTC
+            minute=0
+        )
+        scheduler.start()
+        print("✅ Планировщик ежедневных уведомлений запущен на 9:00 UTC.")
+
+    async def send_daily_reminder(self):
+        """Обертка для send_today_events для использования в планировщике."""
+        # Используем ADMIN_CHAT_ID (из Config), который должен быть установлен в Railway
+        target_chat_id = Config.ADMIN_CHAT_ID
+        if target_chat_id:
+            print(f"⏰ Отправка ежедневного уведомления в чат {target_chat_id}...")
+            # Вызываем асинхронную функцию
+            await self.send_today_events(target_chat_id)
+        else:
+            print("❌ ADMIN_CHAT_ID не установлен, ежедневное уведомление пропущено.")
+
+    # --- ЗАПУСК БОТА ---
+
     def run(self):
-        """Запускаем бота через webhook"""
-        # PORT = int(os.environ.get("PORT", 8080))
-        # 1. Генерируем секрет
-        # WEBHOOK_SECRET = secrets.token_hex(32)
-        # # 2. Создаем путь, который будет слушать наше приложение
-        # # Используем часть секретной строки, чтобы путь был уникальным и безопасным
-        # PATH = f"/{WEBHOOK_SECRET}" # Например: /5a3b2c1d...
-        # # старое.Railway автоматически даёт домен вида: https://<project>.up.railway.app
-        # WEBHOOK_URL = f"https://poetic-gratitude.up.railway.app{PATH}"
+        """Запускаем бота через Long Polling и активируем планировщик."""
+        
+        # 1. Запускаем планировщик, который будет работать в фоновом режиме
+        self.schedule_daily_notifications() 
+
+        # 2. Запускаем основной цикл Telegram (Long Polling)
         print("📡 Запуск бота через Long Polling...")
         self.application.run_polling()
-
-        # print(f"📡 Запуск webhook на порту {PORT}")
-        # print(f"🔗 Webhook URL: {WEBHOOK_URL}")
-
-        # self.application.run_webhook(
-        #     listen="0.0.0.0",
-        #     port=PORT,
-        #     url_path=PATH,
-        #     webhook_url=WEBHOOK_URL,
-        #     secret_token=WEBHOOK_SECRET  # исправвлен
-        # )
 
 
 if __name__ == "__main__":
