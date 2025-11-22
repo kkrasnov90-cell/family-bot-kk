@@ -83,8 +83,74 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("add_member", self.add_member))
         self.application.add_handler(CommandHandler("remove_member", self.remove_member))
         self.application.add_handler(CommandHandler("list", self.list_members))
+        self.application.add_handler(CommandHandler("set_photo", self.set_photo_command))
+        self.application.add_handler(MessageHandler(
+            filters.PHOTO & filters.REPLY, self.handle_photo_reply
+        ))
 
     # --- ХЕНДЛЕРЫ КОМАНД ---
+
+
+    async def set_photo_command(self, update, context):
+        """Инструктирует пользователя, как установить фотографию."""
+        await update.message.reply_text(
+            "📸 Чтобы установить фотографию для члена семьи:\n\n"
+            "1. Найдите сообщение, где вы **добавили** этого члена семьи (через `/add_member`).\n"
+            "2. **Ответьте (Reply)** на это сообщение командой: `/set_photo Имя Фамилия`\n"
+            "3. **Ответьте (Reply)** на вашу же команду `/set_photo...` **самой фотографией!**\n\n"
+            "_Это сложно, но безопасно. Введите `/set_photo Имя Фамилия`, а затем ответьте на это сообщение фотографией._",
+            parse_mode='Markdown'
+        )
+
+    async def handle_photo_reply(self, update, context):
+        """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
+        
+        if not update.message.reply_to_message:
+            return # Игнорируем фото, если это не ответ
+
+        # 1. Пытаемся получить текст из исходного сообщения (команды /set_photo)
+        original_message = update.message.reply_to_message.text
+        if not original_message or not original_message.startswith('/set_photo'):
+            return # Игнорируем, если фото не отвечает на команду /set_photo
+
+        args = original_message.split()[1:] # Имя Фамилия - берем все, что после /set_photo
+
+        if len(args) < 2:
+            return await update.message.reply_text(
+                "❌ **Не удалось определить имя.** Используйте формат `/set_photo Имя Фамилия`",
+                parse_mode='Markdown'
+            )
+
+        name_to_find = " ".join(args).strip()
+        
+        # 2. Получаем ID фотографии (берем самую большую версию)
+        photo_file_id = update.message.photo[-1].file_id
+
+        db = SessionLocal()
+        try:
+            # 3. Ищем члена семьи и обновляем ID фото
+            member = db.query(FamilyMember).filter(
+                FamilyMember.name == name_to_find
+            ).first()
+
+            if member:
+                member.photo_file_id = photo_file_id
+                db.commit()
+                await update.message.reply_text(
+                    f"📸 Фотография для **{member.name}** успешно сохранена и привязана!",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    f"❌ Член семьи с именем **{name_to_find}** не найден.",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            db.rollback()
+            await update.message.reply_text(f"❌ Произошла ошибка при сохранении фото: {e}")
+        finally:
+            db.close()
 
     async def start(self, update, context):
         await update.message.reply_text(
@@ -254,7 +320,19 @@ class FamilyBot:
 
             for member in birthdays:
                 message = service.format_birthday_message(member)
-                await self.application.bot.send_message(chat_id=chat_id, text=message)
+                
+                # Если у члена семьи есть ID фотографии, отправляем фото
+                if member.photo_file_id:
+                    await self.application.bot.send_photo(
+                        chat_id=chat_id, 
+                        photo=member.photo_file_id, 
+                        caption=message, # Сообщение будет подписью к фото
+                        parse_mode='Markdown'
+                    )
+                else:
+                    # Иначе отправляем просто сообщение
+                    await self.application.bot.send_message(chat_id=chat_id, text=message)
+                    
                 await asyncio.sleep(0.5)
 
             for event in events:
