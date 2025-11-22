@@ -4,6 +4,33 @@ from datetime import date, datetime
 import secrets
 import asyncio
 
+# 🎯 Добавляем корневую папку проекта в пути Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# ДОБАВЬТЕ ЭТУ ФУНКЦИЮ:
+def pluralize_years(age):
+    """Возвращает возраст с правильным склонением слова 'год/года/лет'."""
+    if age is None:
+        return ""
+    
+    # Специальный случай для чисел 11-14 (11, 12, 13, 14 лет)
+    if 11 <= age % 100 <= 14:
+        return f"{age} лет"
+
+    # Общее правило, основанное на последней цифре
+    last_digit = age % 10
+    
+    if last_digit == 1:
+        return f"{age} год"  # 1, 21, 31 год
+    elif 2 <= last_digit <= 4:
+        return f"{age} года" # 2, 3, 4, 22, 23, 24 года
+    else:
+        return f"{age} лет" # 5-0 лет
+    
+# --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+Base.metadata.create_all(bind=engine)
+# ...
+
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -193,8 +220,10 @@ class FamilyBot:
             message = "👥 Члены семьи:\n\n"
             for member in members:
                 if hasattr(member, 'birth_date') and member.birth_date:
-                    age = service.calculate_age(member.birth_date)
-                    message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age} лет)\n"
+                    age_num = service.calculate_age(member.birth_date)
+                    # Вызываем нашу новую функцию для правильного склонения
+                    age_str = pluralize_years(age_num) 
+                    message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str})\n"
                 else:
                     message += f"• {member.name}\n"
 
