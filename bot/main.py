@@ -1,8 +1,9 @@
 import sys
 import os
-from datetime import date
+from datetime import date, datetime 
 import secrets
 import asyncio
+
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -72,13 +73,53 @@ class FamilyBot:
         await self.send_today_events(update.message.chat_id)
 
     async def add_member(self, update, context):
-        await update.message.reply_text(
-            "👥 Добавление нового члена семьи\n\n"
-            "Используйте формат:\n"
-            "`/add_member Имя Фамилия ДД.ММ.ГГГГ`\n\n"
-            "Пример:\n"
-            "`/add_member Иван Сидоров 15.03.1990`"
-        )
+        """Добавляет нового члена семьи в базу данных, парся аргументы."""
+        
+        args = context.args
+        db = SessionLocal()
+
+        # 1. Проверка аргументов
+        if len(args) != 3:
+            # Если аргументов нет или их неправильное количество, выводим инструкцию
+            return await update.message.reply_text(
+                "❌ **Неверный формат команды!**\n\n"
+                "Используйте формат:\n"
+                "`/add_member Имя Фамилия ДД.ММ.ГГГГ`\n\n"
+                "Пример:\n"
+                "`/add_member Иван Сидоров 15.03.1990`",
+                parse_mode='Markdown'
+            )
+
+        # 2. Парсинг данных
+        name = f"{args[0]} {args[1]}" # Имя и Фамилия
+        date_str = args[2]            # Дата в формате ДД.ММ.ГГГГ
+
+        try:
+            # 3. Парсинг даты
+            birth_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+            
+            # 4. Сохранение в БД
+            new_member = FamilyMember(name=name, birth_date=birth_date)
+            db.add(new_member)
+            db.commit()
+            
+            await update.message.reply_text(
+                f"🎉 **{name}** успешно добавлен(а) в семью!\n"
+                f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}",
+                parse_mode='Markdown'
+            )
+            
+        except ValueError:
+            await update.message.reply_text(
+                "❌ **Ошибка:** Неправильный формат даты.\n"
+                "Дата должна быть в формате **ДД.ММ.ГГГГ** (например, 15.03.1990).",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            db.rollback()
+            await update.message.reply_text(f"❌ Произошла ошибка при сохранении: {e}")
+        finally:
+            db.close()
 
     async def list_members(self, update, context):
         db = SessionLocal()
