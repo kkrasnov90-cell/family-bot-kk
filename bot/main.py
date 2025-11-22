@@ -103,6 +103,11 @@ class FamilyBot:
             parse_mode='Markdown'
         )
 
+    # 🎯 НОВАЯ ФУНКЦИЯ: Проверяет права
+    def is_admin_chat(self, chat_id):
+        """Проверяет, совпадает ли chat_id с ADMIN_CHAT_ID из Config."""
+        return str(chat_id) == str(Config.ADMIN_CHAT_ID)
+
     async def handle_photo_reply(self, update, context):
         """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
         
@@ -184,6 +189,13 @@ class FamilyBot:
 
     async def remove_member(self, update, context):
         """Удаляет члена семьи из базы данных по имени и фамилии."""
+        # 🛑 НОВАЯ ПРОВЕРКА ПРАВ
+        if not self.is_admin_chat(update.message.chat_id):
+            return await update.message.reply_text(
+                "❌ **Доступ запрещен!** Только администратор может удалять членов семьи.",
+                parse_mode='Markdown'
+            )
+        # 🛑 КОНЕЦ ПРОВЕРКИ
 
         args = context.args
         db = SessionLocal()
@@ -230,6 +242,13 @@ class FamilyBot:
 
     async def add_member(self, update, context):
         """Добавляет нового члена семьи в базу данных, парся аргументы."""
+        # 🛑 НОВАЯ ПРОВЕРКА ПРАВ
+        if not self.is_admin_chat(update.message.chat_id):
+            return await update.message.reply_text(
+                "❌ **Доступ запрещен!** Только администратор может добавлять членов семьи.",
+                parse_mode='Markdown'
+            )
+        # 🛑 КОНЕЦ ПРОВЕРКИ
         
         args = context.args
         db = SessionLocal()
