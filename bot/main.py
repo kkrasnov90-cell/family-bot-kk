@@ -3,11 +3,25 @@ import os
 from datetime import date, datetime 
 import secrets
 import asyncio
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from apscheduler.schedulers.background import BackgroundScheduler 
 
 # 🎯 Добавляем корневую папку проекта в пути Python
+# (Должен быть первым, чтобы импорты работали)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# ДОБАВЬТЕ ЭТУ ФУНКЦИЮ:
+# --- ИМПОРТЫ МОДЕЛЕЙ И БАЗЫ ДАННЫХ (КРИТИЧЕСКИ ВАЖНО) ---
+# После этого момента Python знает, что такое Base, engine, FamilyMember
+from database.connection import SessionLocal, engine
+from database.models import Base, FamilyMember
+from services.notification_service import NotificationService
+from config import Config
+
+
+# ----------------------------------------------------
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ПЕРЕНЕСЕНЫ СЮДА) ---
+# ----------------------------------------------------
+
 def pluralize_years(age):
     """Возвращает возраст с правильным склонением слова 'год/года/лет'."""
     if age is None:
@@ -26,23 +40,12 @@ def pluralize_years(age):
         return f"{age} года" # 2, 3, 4, 22, 23, 24 года
     else:
         return f"{age} лет" # 5-0 лет
-    
-# --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
-Base.metadata.create_all(bind=engine)
-# ...
 
 
-# 🎯 Добавляем корневую папку проекта в пути Python
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ----------------------------------------------------
+# --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ (ПЕРЕНЕСЕНЫ СЮДА) ---
+# ----------------------------------------------------
 
-from telegram.ext import Application, CommandHandler
-from apscheduler.schedulers.background import BackgroundScheduler # <-- ИМПОРТ ПЛАНИРОВЩИКА
-from database.connection import SessionLocal, engine
-from database.models import Base, FamilyMember
-from services.notification_service import NotificationService
-from config import Config
-
-# --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 Base.metadata.create_all(bind=engine)
 
 def seed_family():
@@ -78,7 +81,7 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("today", self.today))
         self.application.add_handler(CommandHandler("test_notify", self.test_notify))
         self.application.add_handler(CommandHandler("add_member", self.add_member))
-        self.application.add_handler(CommandHandler("remove_member", self.remove_member)) # <-- ДОБАВЛЕНО
+        self.application.add_handler(CommandHandler("remove_member", self.remove_member))
         self.application.add_handler(CommandHandler("list", self.list_members))
 
     # --- ХЕНДЛЕРЫ КОМАНД ---
@@ -95,14 +98,14 @@ class FamilyBot:
             
             "**Управление данными:**\n"
             "• `/add_member Имя Фамилия ДД.ММ.ГГГГ` — **Добавить** члена семьи ➕\n"
-            "• `/remove_member Имя Фамилия` — **Удалить** члена семьи 🗑️\n" # <-- ДОБАВЛЕНО
+            "• `/remove_member Имя Фамилия` — **Удалить** члена семьи 🗑️\n"
             
             "**Тест:**\n"
             "• `/test_notify` — Проверить работу уведомлений 🔔\n\n"
             
             "_⚡ Автоматические уведомления приходят ежедневно в 9:00 UTC!_"
         ,
-            parse_mode='Markdown' # <-- Убеждаемся, что парсинг Markdown включен
+            parse_mode='Markdown' 
         )
 
     async def today(self, update, context):
@@ -221,7 +224,7 @@ class FamilyBot:
             for member in members:
                 if hasattr(member, 'birth_date') and member.birth_date:
                     age_num = service.calculate_age(member.birth_date)
-                    # Вызываем нашу новую функцию для правильного склонения
+                    # Вызываем функцию для правильного склонения
                     age_str = pluralize_years(age_num) 
                     message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str})\n"
                 else:
