@@ -22,10 +22,13 @@ def seed_family():
     db = SessionLocal()
     try:
         if db.query(FamilyMember).count() == 0:
-            names = ["Кирилл", "Екатерина", "Ксения"]
-            default_bday = date.today()
-            for name in names:
-                db.add(FamilyMember(name=name, birth_date=default_bday))
+            initial_members = [
+                ("Кирилл", date(1990, 4, 11)),      
+                ("Екатерина", date(1991, 6, 30)),   
+                ("Ксения", date(2019, 5, 26)),       
+            ]
+            for name, bday in initial_members:
+                db.add(FamilyMember(name=name, birth_date=bday))
             db.commit()
             print("✅ Семья добавлена в базу")
         else:
