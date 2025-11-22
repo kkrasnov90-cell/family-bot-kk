@@ -51,6 +51,7 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("today", self.today))
         self.application.add_handler(CommandHandler("test_notify", self.test_notify))
         self.application.add_handler(CommandHandler("add_member", self.add_member))
+        self.application.add_handler(CommandHandler("remove_member", self.remove_member)) # <-- ДОБАВЛЕНО
         self.application.add_handler(CommandHandler("list", self.list_members))
 
     # --- ХЕНДЛЕРЫ КОМАНД ---
@@ -73,6 +74,52 @@ class FamilyBot:
     async def test_notify(self, update, context):
         await update.message.reply_text("🔔 Тестирую уведомления...")
         await self.send_today_events(update.message.chat_id)
+
+    async def remove_member(self, update, context):
+        """Удаляет члена семьи из базы данных по имени и фамилии."""
+
+        args = context.args
+        db = SessionLocal()
+
+        # 1. Проверка аргументов (ожидаем минимум 2: Имя и Фамилия)
+        if len(args) < 2:
+            return await update.message.reply_text(
+                "❌ **Неверный формат команды!**\n\n"
+                "Используйте формат:\n"
+                "`/remove_member Имя Фамилия`\n\n"
+                "Пример:\n"
+                "`/remove_member Иван Сидоров`",
+                parse_mode='Markdown'
+            )
+
+        # 2. Объединяем аргументы в полное имя для поиска
+        name_to_remove = " ".join(args).strip()
+
+        try:
+            # 3. Ищем члена семьи по полному имени
+            member = db.query(FamilyMember).filter(
+                FamilyMember.name == name_to_remove
+            ).first()
+
+            if member:
+                # 4. Удаляем, если нашли
+                db.delete(member)
+                db.commit()
+                await update.message.reply_text(
+                    f"🗑️ **{member.name}** успешно удален(а) из семьи.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    f"❌ Член семьи с именем **{name_to_remove}** не найден в базе.",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            db.rollback()
+            await update.message.reply_text(f"❌ Произошла ошибка при удалении: {e}")
+        finally:
+            db.close()
 
     async def add_member(self, update, context):
         """Добавляет нового члена семьи в базу данных, парся аргументы."""
