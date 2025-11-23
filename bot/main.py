@@ -16,7 +16,7 @@ from database.connection import SessionLocal, engine
 from database.models import Base, FamilyMember
 from services.notification_service import NotificationService
 from config import Config
-
+FamilyEvent.__table__.drop(engine, checkfirst=True)
 
 # ----------------------------------------------------
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ПЕРЕНЕСЕНЫ СЮДА) ---
@@ -43,6 +43,7 @@ def pluralize_years(age):
 
 
 # --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+
 
 # 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ. 
 # SQLAlchemy использует "CREATE TABLE IF NOT EXISTS", чтобы не ругаться, 
