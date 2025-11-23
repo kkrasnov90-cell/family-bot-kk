@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # --- ИМПОРТЫ МОДЕЛЕЙ И БАЗЫ ДАННЫХ (КРИТИЧЕСКИ ВАЖНО) ---
 # После этого момента Python знает, что такое Base, engine, FamilyMember
 from database.connection import SessionLocal, engine
-from database.models import Base, FamilyMember
+from database.models import Base, FamilyMember, FamilyEvent
 from services.notification_service import NotificationService
 from config import Config
 FamilyEvent.__table__.drop(engine, checkfirst=True)
