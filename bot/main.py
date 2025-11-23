@@ -16,7 +16,7 @@ from database.connection import SessionLocal, engine
 from database.models import Base, FamilyMember, FamilyEvent
 from services.notification_service import NotificationService
 from config import Config
-
+# FamilyEvent.__table__.drop(engine, checkfirst=True) # ⚠️ УДАЛЕН ВРЕМЕННЫЙ КОД
 
 # ----------------------------------------------------
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ПЕРЕНЕСЕНЫ СЮДА) ---
@@ -46,9 +46,6 @@ def pluralize_years(age):
 
 
 # 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ. 
-# SQLAlchemy использует "CREATE TABLE IF NOT EXISTS", чтобы не ругаться, 
-# если таблица уже есть. Это самая безопасная команда.
-
 Base.metadata.create_all(bind=engine) 
 
 def seed_family():
@@ -90,6 +87,24 @@ class FamilyBot:
         self.application.add_handler(MessageHandler(
             filters.PHOTO & filters.REPLY, self.handle_photo_reply
         ))
+
+    # 🎯 НОВАЯ ФУНКЦИЯ: Установка команд меню
+    async def set_commands(self):
+        """Устанавливает список команд в меню Telegram."""
+        commands = [
+            ("start", "👋 Приветствие и список команд"),
+            ("today", "📅 События на сегодня"),
+            ("list", "👥 Показать всех членов семьи"),
+            ("add_member", "➕ Добавить члена семьи (админ)"),
+            ("remove_member", "🗑️ Удалить члена семьи (админ)"),
+            ("set_photo", "📸 Инструкция: установить фото (админ)"),
+            ("test_notify", "🔔 Проверить уведомления"),
+        ]
+        
+        # Вызываем метод Telegram API для установки команд
+        await self.application.bot.set_my_commands(commands)
+        print("✅ Меню команд Telegram успешно установлено.")
+
 
     # --- ХЕНДЛЕРЫ КОМАНД ---
 
@@ -313,7 +328,7 @@ class FamilyBot:
                 if hasattr(member, 'birth_date') and member.birth_date:
                     age_num = service.calculate_age(member.birth_date)
                     # Вызываем функцию для правильного склонения
-                    age_str = pluralize_years(age_num) 
+                    age_str = pluralize_years(age_num)  
                     message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str})\n"
                 else:
                     message += f"• {member.name}\n"
@@ -404,9 +419,13 @@ class FamilyBot:
         """Запускаем бота через Long Polling и активируем планировщик."""
         
         # 1. Запускаем планировщик, который будет работать в фоновом режиме
-        self.schedule_daily_notifications() 
+        self.schedule_daily_notifications()  
 
-        # 2. Запускаем основной цикл Telegram (Long Polling)
+        # 2. Устанавливаем команды перед запуском (через loop)
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.set_commands()) # 👈 Вызов асинхронной функции
+
+        # 3. Запускаем основной цикл Telegram (Long Polling)
         print("📡 Запуск бота через Long Polling...")
         self.application.run_polling()
 
