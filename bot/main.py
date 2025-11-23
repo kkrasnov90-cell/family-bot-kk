@@ -16,7 +16,6 @@ from database.connection import SessionLocal, engine
 from database.models import Base, FamilyMember, FamilyEvent
 from services.notification_service import NotificationService
 from config import Config
-FamilyEvent.__table__.drop(engine, checkfirst=True)
 
 # ----------------------------------------------------
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ПЕРЕНЕСЕНЫ СЮДА) ---
