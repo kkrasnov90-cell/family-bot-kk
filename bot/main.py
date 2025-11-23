@@ -48,7 +48,7 @@ def pluralize_years(age):
 # 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ. 
 # SQLAlchemy использует "CREATE TABLE IF NOT EXISTS", чтобы не ругаться, 
 # если таблица уже есть. Это самая безопасная команда.
-FamilyEvent.__table__.drop(engine, checkfirst=True)
+
 Base.metadata.create_all(bind=engine) 
 
 def seed_family():
