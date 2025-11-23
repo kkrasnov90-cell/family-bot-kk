@@ -1,25 +1,26 @@
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, JSON, Enum, func
-from sqlalchemy.orm import Mapped, mapped_column # <--- ДОБАВЛЕНО
-from datetime import date, datetime # <--- ИСПРАВЛЕНО: добавлена Mapped, date, datetime
+from sqlalchemy.orm import Mapped, mapped_column 
+from datetime import date, datetime 
 import enum
 from .connection import Base
 
 class EventType(enum.Enum):
     """Типы событий для нашего бота"""
-    BIRTHDAY = "birthday"  # День рождения
+    BIRTHDAY = "birthday"    # День рождения
     ANNIVERSARY = "anniversary"  # Годовщина (свадьба и т.д.)
-    MEMORIAL = "memorial"  # Памятная дата
-    OTHER = "other"  # Другое событие
+    MEMORIAL = "memorial"    # Памятная дата
+    OTHER = "other"      # Другое событие
 
 
 class FamilyMember(Base):
+    """Модель для хранения членов семьи"""
     __tablename__ = 'family_members'
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     birth_date: Mapped[date] = mapped_column(Date)
     
-    # НОВОЕ ПОЛЕ: Для хранения ID файла фотографии в Telegram
+    # Поле для хранения ID файла фотографии в Telegram
     photo_file_id: Mapped[str | None] = mapped_column(String, nullable=True) 
 
     def __repr__(self) -> str:
@@ -33,8 +34,18 @@ class FamilyEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)  # Название события
     event_date = Column(Date, nullable=False)  # Дата события
-    event_type = Column(Enum(EventType), nullable=False)  # Тип события
+    
+    # ✅ КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: Принудительно используем ENUM 'eventtypev2'
+    event_type = Column(
+        Enum(
+            EventType, 
+            name='eventtypev2', # Ссылка на существующий, правильный ENUM
+            create_type=False  # Предотвращает попытку создания
+        ), 
+        nullable=False
+    )
+    
     description = Column(Text)  # Описание
-    photo_ids = Column(JSON)  # Список ID фото
-    recurring = Column(Boolean, default=True)  # Повторять ежегодно
-    created_at = Column(Date, default=func.now())  # 🎯 ИСПРАВЛЕНО!
+    photo_ids = Column(JSON)  # Список ID фото (ВОЗВРАЩЕНО)
+    recurring = Column(Boolean, default=True)  # Повторять ежегодно (ВОЗВРАЩЕНО)
+    created_at = Column(Date, default=func.now())  # Дата создания записи (ВОЗВРАЩЕНО)
