@@ -56,7 +56,7 @@ def seed_family():
         # 2. Теперь таблица ГАРАНТИРОВАННО существует, и count() не вызовет ошибки.
         if db.query(FamilyMember).count() == 0:
             initial_members = [
-                ("Кирилл", date(1990, 4, 11)),
+                ("Кирилл Краснов", date(1990, 4, 11)),
             ]
             for name, bday in initial_members:
                 db.add(FamilyMember(name=name, birth_date=bday))
