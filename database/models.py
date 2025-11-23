@@ -11,7 +11,7 @@ from .connection import Base
 #     MEMORIAL = "memorial"  # Памятная дата
 #     OTHER = "other"  # Другое событие
 class EventTypeV2(enum.Enum): # <--- НОВОЕ ИМЯ
-    """Типы событий для нашего бота"""
+   
     BIRTHDAY = "birthday"  
     ANNIVERSARY = "anniversary"  
     MEMORIAL = "memorial"  
