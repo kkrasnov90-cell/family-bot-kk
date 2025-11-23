@@ -12,10 +12,10 @@ from .connection import Base
 #     OTHER = "other"  # Другое событие
 class EventTypeV2(enum.Enum): # <--- НОВОЕ ИМЯ
     """Типы событий для нашего бота"""
-    BIRTHDAY = "birthday"  
-    ANNIVERSARY = "anniversary"  
-    MEMORIAL = "memorial"  
-    OTHER = "other"
+    BIRTHDAY = "birthday"  
+    ANNIVERSARY = "anniversary"  
+    MEMORIAL = "memorial"  
+    OTHER = "other"
 
 class FamilyMember(Base):
     __tablename__ = 'family_members'
