@@ -404,15 +404,17 @@ class FamilyBot:
         db = SessionLocal()
         try:
             service = NotificationService(db)
-            birthdays, events = service.get_today_events()
+            # 🎯 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Добавили death_anniversaries
+            birthdays, events, death_anniversaries = service.get_today_events()
 
-            if not birthdays and not events:
+            if not birthdays and not events and not death_anniversaries:
                 await self.application.bot.send_message(
                     chat_id=chat_id,
                     text="📅 Сегодня нет знаменательных дат"
                 )
                 return
 
+            # 1. Отправка уведомлений о днях рождения
             for member in birthdays:
                 message = service.format_birthday_message(member)
                 
@@ -428,9 +430,22 @@ class FamilyBot:
                     
                 await asyncio.sleep(0.5)
 
+            # 2. Отправка уведомлений о других событиях
             for event in events:
                 message = service.format_event_message(event)
                 await self.application.bot.send_message(chat_id=chat_id, text=message)
+                await asyncio.sleep(0.5)
+                
+            # 3. Отправка уведомлений о годовщинах смерти (НОВЫЙ БЛОК)
+            for member in death_anniversaries:
+                message = service.format_death_anniversary_message(member)
+                # Годовщины лучше отправлять без фото, чтобы не путать с ДР.
+                # Если хотите отправить фото, используйте логику, как для ДР выше.
+                await self.application.bot.send_message(
+                    chat_id=chat_id, 
+                    text=message,
+                    parse_mode=ParseMode.MARKDOWN
+                )
                 await asyncio.sleep(0.5)
 
         except Exception as e:
