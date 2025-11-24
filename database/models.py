@@ -1,3 +1,5 @@
+# Файл: database/models.py
+
 from sqlalchemy import Column, Integer, String, Date, Text, Boolean, JSON, Enum, func
 from sqlalchemy.orm import Mapped, mapped_column 
 from datetime import date, datetime 
@@ -6,10 +8,10 @@ from .connection import Base
 
 class EventType(enum.Enum):
     """Типы событий для нашего бота"""
-    BIRTHDAY = "birthday"    # День рождения
-    ANNIVERSARY = "anniversary"  # Годовщина (свадьба и т.д.)
-    MEMORIAL = "memorial"    # Памятная дата
-    OTHER = "other"      # Другое событие
+    BIRTHDAY = "birthday"     # День рождения
+    ANNIVERSARY = "anniversary"   # Годовщина (свадьба и т.д.)
+    MEMORIAL = "memorial"     # Памятная дата
+    OTHER = "other"       # Другое событие
 
 
 class FamilyMember(Base):
@@ -19,6 +21,9 @@ class FamilyMember(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     birth_date: Mapped[date] = mapped_column(Date)
+    
+    # 🕊️ НОВОЕ ПОЛЕ: Дата смерти
+    death_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     
     # Поле для хранения ID файла фотографии в Telegram
     photo_file_id: Mapped[str | None] = mapped_column(String, nullable=True) 
@@ -40,7 +45,7 @@ class FamilyEvent(Base):
         Enum(
             EventType, 
             name='eventtypev2', # Ссылка на существующий, правильный ENUM
-            create_type=False  # Предотвращает попытку создания
+            create_type=False # Предотвращает попытку создания
         ), 
         nullable=False
     )
