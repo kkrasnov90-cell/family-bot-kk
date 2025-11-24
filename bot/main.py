@@ -4,7 +4,8 @@ from datetime import date, datetime
 import secrets
 import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from apscheduler.schedulers.background import BackgroundScheduler 
+# ✅ ИСПРАВЛЕНИЕ 1: Заменяем BackgroundScheduler на AsyncIOScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler 
 from telegram.constants import ParseMode 
 
 # 🎯 Добавляем корневую папку проекта в пути Python
@@ -96,7 +97,7 @@ class FamilyBot:
             filters.PHOTO & filters.REPLY, self.handle_photo_reply
         ))
 
-    async def set_commands(self):
+    async def set_commands(self, application): # Добавляем application как аргумент, хотя он не нужен
         """Устанавливает список команд в меню Telegram."""
         commands = [
             ("start", "👋 Приветствие и цели бота"),
@@ -363,163 +364,4 @@ class FamilyBot:
             
             # 2. Парсинг даты смерти (если есть)
             if death_date_str:
-                death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
-            
-            new_member = FamilyMember(
-                name=name, 
-                birth_date=birth_date, 
-                death_date=death_date # <--- Добавляем новое поле
-            )
-            db.add(new_member)
-            db.commit()
-            
-            status = "🎉 **(Живой)**" if death_date is None else "🕯️ **(Ушедший)**"
-            death_info = f"\nДата смерти: {death_date.strftime('%d.%m.%Y')}" if death_date else ""
-            
-            await update.message.reply_text(
-                f"{status} **{name}** успешно добавлен(а) в семью!\n"
-                f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}{death_info}",
-                parse_mode=ParseMode.MARKDOWN
-            )
-            
-        except ValueError:
-            await update.message.reply_text(
-                "❌ **Ошибка:** Неправильный формат даты.\n"
-                "Дата должна быть в формате **ДД.ММ.ГГГГ** (например, 15.03.1990).",
-                parse_mode=ParseMode.MARKDOWN
-            )
-        except Exception as e:
-            db.rollback()
-            await update.message.reply_text(f"❌ Произошла ошибка при сохранении: {e}")
-        finally:
-            db.close()
-
-    async def list_members(self, update, context):
-        db = SessionLocal()
-        try:
-            service = NotificationService(db)
-            members = db.query(FamilyMember).all()
-
-            if not members:
-                await update.message.reply_text("👥 В базе пока нет членов семьи")
-                return
-
-            message = "👥 Члены семьи:\n\n"
-            for member in members:
-                if hasattr(member, 'birth_date') and member.birth_date:
-                    age_num = service.calculate_age(member.birth_date)
-                    age_str = pluralize_years(age_num)  
-                    message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str})\n"
-                else:
-                    message += f"• {member.name}\n"
-
-            await update.message.reply_text(message)
-
-        except Exception as e:
-            await update.message.reply_text("❌ Ошибка при получении данных")
-        finally:
-            db.close()
-
-    # --- ЛОГИКА УВЕДОМЛЕНИЙ И ПЛАНИРОВЩИК ---
-
-    async def send_today_events(self, chat_id):
-        db = SessionLocal()
-        try:
-            service = NotificationService(db)
-            # 🎯 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Добавили death_anniversaries
-            birthdays, events, death_anniversaries = service.get_today_events()
-
-            # Проверяем все три списка
-            if not birthdays and not events and not death_anniversaries:
-                await self.application.bot.send_message(
-                    chat_id=chat_id,
-                    text="📅 Сегодня нет знаменательных дат"
-                )
-                return
-
-            # 1. Отправка уведомлений о днях рождения (и живых, и ушедших)
-            for member in birthdays:
-                message = service.format_birthday_message(member)
-                
-                if member.photo_file_id:
-                    await self.application.bot.send_photo(
-                        chat_id=chat_id, 
-                        photo=member.photo_file_id, 
-                        caption=message, 
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
-                    await self.application.bot.send_message(chat_id=chat_id, text=message)
-                    
-                await asyncio.sleep(0.5)
-
-            # 2. Отправка уведомлений о других событиях
-            for event in events:
-                message = service.format_event_message(event)
-                await self.application.bot.send_message(chat_id=chat_id, text=message)
-                await asyncio.sleep(0.5)
-                
-            # 3. Отправка уведомлений о годовщинах смерти
-            for member in death_anniversaries:
-                message = service.format_death_anniversary_message(member)
-                
-                # Здесь вы можете решить, отправлять ли фото (photo_file_id) или нет. 
-                # Для годовщины смерти лучше отправлять только текст.
-                await self.application.bot.send_message(
-                    chat_id=chat_id, 
-                    text=message,
-                    parse_mode=ParseMode.MARKDOWN
-                )
-                await asyncio.sleep(0.5)
-
-        except Exception as e:
-            print(f"❌ Ошибка при отправке уведомления в чат {chat_id}: {e}")
-            await self.application.bot.send_message(
-                chat_id=chat_id,
-                text="❌ Ошибка при получении данных для уведомления"
-            )
-        finally:
-            db.close()
-
-    def schedule_daily_notifications(self):
-        """Настраивает ежедневное уведомление в 9:00 UTC с помощью APScheduler."""
-        scheduler = BackgroundScheduler()
-
-        scheduler.add_job(
-            self.send_daily_reminder,
-            'cron',
-            hour=9, # 9:00 UTC
-            minute=0
-        )
-        scheduler.start()
-        print("✅ Планировщик ежедневных уведомлений запущен на 9:00 UTC.")
-
-    async def send_daily_reminder(self):
-        """Обертка для send_today_events для использования в планировщике."""
-        target_chat_id = Config.ADMIN_CHAT_ID
-        if target_chat_id:
-            print(f"⏰ Отправка ежедневного уведомления в чат {target_chat_id}...")
-            await self.send_today_events(target_chat_id)
-        else:
-            print("❌ ADMIN_CHAT_ID не установлен, ежедневное уведомление пропущено.")
-
-    # --- ЗАПУСК БОТА ---
-
-    def run(self):
-        """Запускаем бота через Long Polling и активируем планировщик."""
-        
-        # 1. Запускаем планировщик, который будет работать в фоновом режиме
-        self.schedule_daily_notifications()  
-
-        # 2. Устанавливаем команды перед запуском (через loop)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.set_commands()) 
-
-        # 3. Запускаем основной цикл Telegram (Long Polling)
-        print("📡 Запуск бота через Long Polling...")
-        self.application.run_polling()
-
-
-if __name__ == "__main__":
-    bot = FamilyBot()
-    bot.run()
+                death_date = datetime.strptime(death
