@@ -322,7 +322,11 @@ class FamilyBot:
             db.close()
 
     async def add_member(self, update, context):
-        """Добавляет нового члена семьи в базу данных, парся аргументы."""
+        """
+        Добавляет нового члена семьи в базу данных, парся аргументы.
+        Формат: /add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]
+        Последняя дата (если есть) - дата смерти.
+        """
         # 🛑 ПРОВЕРКА ПРАВ
         if not self.is_admin_chat(update.message.chat_id):
             return await update.message.reply_text(
@@ -334,29 +338,47 @@ class FamilyBot:
         args = context.args
         db = SessionLocal()
 
-        if len(args) != 3:
+        # Проверка на 3 или 4 аргумента (Имя Фамилия ДР [ДС])
+        if len(args) < 3 or len(args) > 4:
             return await update.message.reply_text(
                 "❌ **Неверный формат команды!**\n\n"
-                "Используйте формат:\n"
-                "`/add_member Имя Фамилия ДД.ММ.ГГГГ`\n\n"
+                "Используйте один из форматов:\n"
+                "1. **Для живого:**\n `/add_member Имя Фамилия ДД.ММ.ГГГГ (ДР)`\n\n"
+                "2. **Для ушедшего:**\n `/add_member Имя Фамилия ДД.ММ.ГГГГ (ДР) ДД.ММ.ГГГГ (ДС)`\n\n"
                 "Пример:\n"
-                "`/add_member Иван Сидоров 15.03.1990`",
+                "`/add_member Иван Сидоров 15.03.1990 01.01.2020`",
                 parse_mode=ParseMode.MARKDOWN
             )
 
         name = f"{args[0]} {args[1]}" 
-        date_str = args[2]            
+        birth_date_str = args[2]
+        death_date_str = args[3] if len(args) == 4 else None
+        
+        birth_date = None
+        death_date = None
 
         try:
-            birth_date = datetime.strptime(date_str, '%d.%m.%Y').date()
+            # 1. Парсинг даты рождения
+            birth_date = datetime.strptime(birth_date_str, '%d.%m.%Y').date()
             
-            new_member = FamilyMember(name=name, birth_date=birth_date)
+            # 2. Парсинг даты смерти (если есть)
+            if death_date_str:
+                death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
+            
+            new_member = FamilyMember(
+                name=name, 
+                birth_date=birth_date, 
+                death_date=death_date # <--- Добавляем новое поле
+            )
             db.add(new_member)
             db.commit()
             
+            status = "🎉 **(Живой)**" if death_date is None else "🕯️ **(Ушедший)**"
+            death_info = f"\nДата смерти: {death_date.strftime('%d.%m.%Y')}" if death_date else ""
+            
             await update.message.reply_text(
-                f"🎉 **{name}** успешно добавлен(а) в семью!\n"
-                f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}",
+                f"{status} **{name}** успешно добавлен(а) в семью!\n"
+                f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}{death_info}",
                 parse_mode=ParseMode.MARKDOWN
             )
             
@@ -407,6 +429,7 @@ class FamilyBot:
             # 🎯 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Добавили death_anniversaries
             birthdays, events, death_anniversaries = service.get_today_events()
 
+            # Проверяем все три списка
             if not birthdays and not events and not death_anniversaries:
                 await self.application.bot.send_message(
                     chat_id=chat_id,
@@ -414,7 +437,7 @@ class FamilyBot:
                 )
                 return
 
-            # 1. Отправка уведомлений о днях рождения
+            # 1. Отправка уведомлений о днях рождения (и живых, и ушедших)
             for member in birthdays:
                 message = service.format_birthday_message(member)
                 
@@ -436,11 +459,12 @@ class FamilyBot:
                 await self.application.bot.send_message(chat_id=chat_id, text=message)
                 await asyncio.sleep(0.5)
                 
-            # 3. Отправка уведомлений о годовщинах смерти (НОВЫЙ БЛОК)
+            # 3. Отправка уведомлений о годовщинах смерти
             for member in death_anniversaries:
                 message = service.format_death_anniversary_message(member)
-                # Годовщины лучше отправлять без фото, чтобы не путать с ДР.
-                # Если хотите отправить фото, используйте логику, как для ДР выше.
+                
+                # Здесь вы можете решить, отправлять ли фото (photo_file_id) или нет. 
+                # Для годовщины смерти лучше отправлять только текст.
                 await self.application.bot.send_message(
                     chat_id=chat_id, 
                     text=message,
