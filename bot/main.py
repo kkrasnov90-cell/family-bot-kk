@@ -3,7 +3,6 @@ import os
 from datetime import date, datetime 
 import secrets
 import asyncio
-from sqlalchemy import text
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 # ✅ ИСПРАВЛЕНИЕ 1: Заменяем BackgroundScheduler на AsyncIOScheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler 
@@ -66,25 +65,7 @@ def seed_family():
         db.close()
 
 seed_family()
-# 🛑 ⚠️ ВРЕМЕННЫЙ КОД ДЛЯ ИСПРАВЛЕНИЯ ОШИБКИ UNIQUE VIOLATION ⚠️ 🛑
-def fix_sequence_id():
-    """Сбрасывает счетчик ID для таблицы family_members, чтобы избежать UniqueViolation."""
-    db = SessionLocal()
-    try:
-        # SQL-запрос для установки счетчика на MAX(id)
-        sql = "SELECT setval('family_members_id_seq', (SELECT MAX(id) FROM family_members))"
-        result = db.execute(text(sql))
-        db.commit()
-        # Вывод в лог Railway нового значения счетчика
-        print(f"✅ УСПЕХ! Счетчик ID (family_members) сброшен. Новое значение: {result.scalar()}")
-    except Exception as e:
-        db.rollback()
-        print(f"❌ ОШИБКА сброса счетчика ID: {e}")
-    finally:
-        db.close()
 
-fix_sequence_id()
-# 🛑 ⚠️ КОНЕЦ ВРЕМЕННОГО КОДА ⚠️ 🛑
 # --- 🚀 КОНЕЦ ИНИЦИАЛИЗАЦИИ ---
 
 class FamilyBot:
