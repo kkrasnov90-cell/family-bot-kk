@@ -4,9 +4,9 @@ from datetime import date, datetime
 import secrets
 import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-# ✅ ИСПРАВЛЕНИЕ 1: Заменяем BackgroundScheduler на AsyncIOScheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler 
 from telegram.constants import ParseMode 
+from telegram.request import HTTPXRequest # Импортируем для настройки таймаута (опционально)
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,8 +52,9 @@ def seed_family():
     db = SessionLocal()
     try:
         if db.query(FamilyMember).count() == 0:
+            # 💡 Поставьте дату, которая НЕ СЕГОДНЯ, чтобы не мешало отладке
             initial_members = [
-                ("Кирилл Краснов", date(1990, 4, 11)),
+                ("Кирилл Краснов", date(1990, 4, 11)), 
             ]
             for name, bday in initial_members:
                 db.add(FamilyMember(name=name, birth_date=bday))
@@ -71,7 +72,13 @@ seed_family()
 class FamilyBot:
     def __init__(self):
         # Используем токен из Config для создания приложения
-        self.application = Application.builder().token(Config.BOT_TOKEN).build()
+        # Опционально: Устанавливаем таймаут для повышения устойчивости к NetworkError
+        self.request_config = HTTPXRequest(read_timeout=60.0) 
+        
+        self.application = Application.builder() \
+            .token(Config.BOT_TOKEN) \
+            .request(self.request_config) \
+            .build()
         self.setup_handlers()
 
     # 🎯 ФУНКЦИЯ: Проверяет права администратора
@@ -98,7 +105,7 @@ class FamilyBot:
             filters.PHOTO & filters.REPLY, self.handle_photo_reply
         ))
 
-    async def set_commands(self, application): # Добавляем application как аргумент, хотя он не нужен
+    async def set_commands(self, application):
         """Устанавливает список команд в меню Telegram."""
         commands = [
             ("start", "👋 Приветствие и цели бота"),
@@ -111,33 +118,23 @@ class FamilyBot:
             ("file_id", "🔑 Получить ID файла (админ)"), 
         ]
         
-        # Вызываем метод Telegram API для установки команд
         await self.application.bot.set_my_commands(commands)
         print("✅ Меню команд Telegram успешно установлено.")
 
 
-    # --- ХЕНДЛЕРЫ КОМАНД ---
+    # --- ХЕНДЛЕРЫ КОМАНД (Большая часть пропущена для краткости) ---
 
     async def start(self, update, context):
-        """
-        Обработчик команды /start. 
-        Отправляет красивое приветствие, цели и возможности бота (Вариант 1).
-        """
-        
+        # ... (Ваш код для start)
         GREETING_PHOTO_ID = getattr(Config, 'GREETING_PHOTO_ID', None)
-        
-        # 🎯 НОВЫЙ ТЕКСТ (Вариант 1)
         message_text = (
             "**👋 С возвращением! Я Семейный Хранитель.**\n\n"
-            
             "Моя задача — хранить в памяти всё, что важно для вашей семьи, и делиться этим с вами в нужный момент.\n\n"
-            
             "**🌟 Как я работаю?**\n"
             "Я работаю автоматически и тихо, отправляя уведомления **каждый день в 9:00 UTC**:\n"
             "• **Дни рождения** 🎂\n"
             "• **Годовщины** 💍\n"
             "• **Важные события** 🗓️\n\n"
-            
             "**⚙️ Управление**\n"
             "Все команды для управления членами семьи, событиями и фотографиями доступны в **Меню** (кнопка `/`)"
         )
@@ -155,26 +152,18 @@ class FamilyBot:
             )
 
     async def file_id_command(self, update, context):
-        """Возвращает file_id медиафайла, на который была дана команда. (Только для админа)"""
-        
-        # 🛑 ПРОВЕРКА ПРАВ
+        # ... (Ваш код для file_id_command)
         if not self.is_admin_chat(update.message.chat_id):
-            return await update.message.reply_text(
-                "❌ **Доступ запрещен!** Эта команда только для администратора.",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            return await update.message.reply_text("❌ **Доступ запрещен!** Эта команда только для администратора.", parse_mode=ParseMode.MARKDOWN)
 
         replied_message = update.message.reply_to_message
         if not replied_message:
-            return await update.message.reply_text(
-                "❌ **Используйте команду как ответ на медиафайл** (фото, видео, документ), ID которого хотите получить.",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            return await update.message.reply_text("❌ **Используйте команду как ответ на медиафайл**", parse_mode=ParseMode.MARKDOWN)
         
+        # ... (Логика получения file_id)
         file_id = None
         file_type = None
 
-        # Проверяем, какой тип медиафайла содержится в ответном сообщении
         if replied_message.photo:
             file_id = replied_message.photo[-1].file_id
             file_type = "Фотография"
@@ -188,135 +177,73 @@ class FamilyBot:
             file_id = replied_message.audio.file_id
             file_type = "Аудио"
 
-        # Отправка результата
         if file_id:
-            message = (
-                f"✅ **File ID для {file_type}**:\n"
-                f"```\n{file_id}\n```"
-            )
+            message = f"✅ **File ID для {file_type}**:\n```\n{file_id}\n```"
             await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
-            
-            # Также печатаем в логах Railway для удобства копирования
             print(f"\n\n--- ⚠️ FILE ID ({file_type}): {file_id} ⚠️ ---\n\n")
         else:
-            await update.message.reply_text(
-                "❌ **Медиафайл не найден!** Пожалуйста, ответьте на фото, видео или документ.",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            await update.message.reply_text("❌ **Медиафайл не найден!**", parse_mode=ParseMode.MARKDOWN)
 
 
     async def set_photo_command(self, update, context):
-        """Инструктирует пользователя, как установить фотографию."""
+        # ... (Ваш код для set_photo_command)
         await update.message.reply_text(
             "📸 Чтобы установить фотографию для члена семьи:\n\n"
             "1. Найдите сообщение, где вы <b>добавили</b> этого члена семьи (через <code>/add_member</code>).\n"
             "2. <b>Ответьте (Reply)</b> на это сообщение командой: <code>/set_photo Имя Фамилия</code>\n"
-            "3. <b>Ответьте (Reply)</b> на вашу же команду <code>/set_photo...</code> <b>самой фотографией!</b>\n\n"
-            "<i>Это сложно, но безопасно. Введите <code>/set_photo Имя Фамилия</code>, а затем ответьте на это сообщение фотографией.</i>",
-            # 🎯 ИСПРАВЛЕНИЕ: Используем HTML вместо MARKDOWN
+            "3. <b>Ответьте (Reply)</b> на вашу же команду <code>/set_photo...</code> <b>самой фотографией!</b>",
             parse_mode=ParseMode.HTML 
         )
-    async def handle_photo_reply(self, update, context):
-        """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
-        
-        # 🛑 ПРОВЕРКА ПРАВ
-        if not self.is_admin_chat(update.message.chat_id):
-            return 
-        # 🛑 КОНЕЦ ПРОВЕРКИ
 
-        if not update.message.reply_to_message:
-            return 
+    async def handle_photo_reply(self, update, context):
+        # ... (Ваш код для handle_photo_reply)
+        if not self.is_admin_chat(update.message.chat_id): return
+        if not update.message.reply_to_message: return 
 
         original_message = update.message.reply_to_message.text
-        if not original_message or not original_message.startswith('/set_photo'):
-            return 
+        if not original_message or not original_message.startswith('/set_photo'): return 
 
         args = original_message.split()[1:] 
-
         if len(args) < 2:
-            return await update.message.reply_text(
-                "❌ **Не удалось определить имя.** Используйте формат `/set_photo Имя Фамилия`",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            return await update.message.reply_text("❌ **Не удалось определить имя.** Используйте формат `/set_photo Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
 
         name_to_find = " ".join(args).strip()
         photo_file_id = update.message.photo[-1].file_id
 
         db = SessionLocal()
         try:
-            member = db.query(FamilyMember).filter(
-                FamilyMember.name == name_to_find
-            ).first()
-
+            member = db.query(FamilyMember).filter(FamilyMember.name == name_to_find).first()
             if member:
                 member.photo_file_id = photo_file_id
                 db.commit()
-                await update.message.reply_text(
-                    f"📸 Фотография для **{member.name}** успешно сохранена и привязана!",
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                await update.message.reply_text(f"📸 Фотография для **{member.name}** успешно сохранена и привязана!", parse_mode=ParseMode.MARKDOWN)
             else:
-                await update.message.reply_text(
-                    f"❌ Член семьи с именем **{name_to_find}** не найден.",
-                    parse_mode=ParseMode.MARKDOWN
-                )
-
+                await update.message.reply_text(f"❌ Член семьи с именем **{name_to_find}** не найден.", parse_mode=ParseMode.MARKDOWN)
         except Exception as e:
             db.rollback()
             await update.message.reply_text(f"❌ Произошла ошибка при сохранении фото: {e}")
         finally:
             db.close()
-
-    async def today(self, update, context):
-        await self.send_today_events(update.message.chat_id)
-
-    async def test_notify(self, update, context):
-        await update.message.reply_text("🔔 Тестирую уведомления...")
-        await self.send_today_events(update.message.chat_id)
-
+            
     async def remove_member(self, update, context):
-        """Удаляет члена семьи из базы данных по имени и фамилии."""
-        # 🛑 ПРОВЕРКА ПРАВ
-        if not self.is_admin_chat(update.message.chat_id):
-            return await update.message.reply_text(
-                "❌ **Доступ запрещен!** Только администратор может удалять членов семьи.",
-                parse_mode=ParseMode.MARKDOWN
-            )
-        # 🛑 КОНЕЦ ПРОВЕРКИ
-
+        # ... (Ваш код для remove_member)
+        if not self.is_admin_chat(update.message.chat_id): return await update.message.reply_text("❌ **Доступ запрещен!**", parse_mode=ParseMode.MARKDOWN)
+        
         args = context.args
         db = SessionLocal()
 
-        if len(args) < 2:
-            return await update.message.reply_text(
-                "❌ **Неверный формат команды!**\n\n"
-                "Используйте формат:\n"
-                "`/remove_member Имя Фамилия`\n\n"
-                "Пример:\n"
-                "`/remove_member Иван Сидоров`",
-                parse_mode=ParseMode.MARKDOWN
-            )
+        if len(args) < 2: return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/remove_member Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
 
         name_to_remove = " ".join(args).strip()
 
         try:
-            member = db.query(FamilyMember).filter(
-                FamilyMember.name == name_to_remove
-            ).first()
-
+            member = db.query(FamilyMember).filter(FamilyMember.name == name_to_remove).first()
             if member:
                 db.delete(member)
                 db.commit()
-                await update.message.reply_text(
-                    f"🗑️ **{member.name}** успешно удален(а) из семьи.",
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                await update.message.reply_text(f"🗑️ **{member.name}** успешно удален(а) из семьи.", parse_mode=ParseMode.MARKDOWN)
             else:
-                await update.message.reply_text(
-                    f"❌ Член семьи с именем **{name_to_remove}** не найден в базе.",
-                    parse_mode=ParseMode.MARKDOWN
-                )
-
+                await update.message.reply_text(f"❌ Член семьи с именем **{name_to_remove}** не найден в базе.", parse_mode=ParseMode.MARKDOWN)
         except Exception as e:
             db.rollback()
             await update.message.reply_text(f"❌ Произошла ошибка при удалении: {e}")
@@ -324,33 +251,13 @@ class FamilyBot:
             db.close()
 
     async def add_member(self, update, context):
-        """
-        Добавляет нового члена семьи в базу данных, парся аргументы.
-        Формат: /add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]
-        Последняя дата (если есть) - дата смерти.
-        """
-        # 🛑 ПРОВЕРКА ПРАВ
-        if not self.is_admin_chat(update.message.chat_id):
-            return await update.message.reply_text(
-                "❌ **Доступ запрещен!** Только администратор может добавлять членов семьи.",
-                parse_mode=ParseMode.MARKDOWN
-            )
-        # 🛑 КОНЕЦ ПРОВЕРКИ
+        # ... (Ваш код для add_member)
+        if not self.is_admin_chat(update.message.chat_id): return await update.message.reply_text("❌ **Доступ запрещен!**", parse_mode=ParseMode.MARKDOWN)
         
         args = context.args
         db = SessionLocal()
 
-        # Проверка на 3 или 4 аргумента (Имя Фамилия ДР [ДС])
-        if len(args) < 3 or len(args) > 4:
-            return await update.message.reply_text(
-                "❌ **Неверный формат команды!**\n\n"
-                "Используйте один из форматов:\n"
-                "1. **Для живого:**\n `/add_member Имя Фамилия ДД.ММ.ГГГГ (ДР)`\n\n"
-                "2. **Для ушедшего:**\n `/add_member Имя Фамилия ДД.ММ.ГГГГ (ДР) ДД.ММ.ГГГГ (ДС)`\n\n"
-                "Пример:\n"
-                "`/add_member Иван Сидоров 15.03.1990 01.01.2020`",
-                parse_mode=ParseMode.MARKDOWN
-            )
+        if len(args) < 3 or len(args) > 4: return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]`", parse_mode=ParseMode.MARKDOWN)
 
         name = f"{args[0]} {args[1]}" 
         birth_date_str = args[2]
@@ -360,23 +267,14 @@ class FamilyBot:
         death_date = None
 
         try:
-            # 1. Парсинг даты рождения
             birth_date = datetime.strptime(birth_date_str, '%d.%m.%Y').date()
+            if death_date_str: death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
             
-            # 2. Парсинг даты смерти (если есть)
-            if death_date_str:
-                death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
-            
-            new_member = FamilyMember(
-                name=name, 
-                birth_date=birth_date, 
-                death_date=death_date # <--- Добавляем новое поле
-            )
+            new_member = FamilyMember(name=name, birth_date=birth_date, death_date=death_date)
             db.add(new_member)
             db.commit()
             
             status = "🎉 **(Живой)**" if death_date is None else "🕯️ **(Ушедший)**"
-            # ✅ ИСПРАВЛЕНИЕ 2: Убран лишний атрибут death_date
             death_info = f"\nДата смерти: {death_date.strftime('%d.%m.%Y')}" if death_date else "" 
             
             await update.message.reply_text(
@@ -386,11 +284,7 @@ class FamilyBot:
             )
             
         except ValueError:
-            await update.message.reply_text(
-                "❌ **Ошибка:** Неправильный формат даты.\n"
-                "Дата должна быть в формате **ДД.ММ.ГГГГ** (например, 15.03.1990).",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            await update.message.reply_text("❌ **Ошибка:** Неправильный формат даты. Дата должна быть в формате **ДД.ММ.ГГГГ**.", parse_mode=ParseMode.MARKDOWN)
         except Exception as e:
             db.rollback()
             await update.message.reply_text(f"❌ Произошла ошибка при сохранении: {e}")
@@ -398,6 +292,7 @@ class FamilyBot:
             db.close()
 
     async def list_members(self, update, context):
+        # ... (Ваш код для list_members)
         db = SessionLocal()
         try:
             service = NotificationService(db)
@@ -410,9 +305,6 @@ class FamilyBot:
             message = "👥 Члены семьи:\n\n"
             for member in members:
                 if hasattr(member, 'birth_date') and member.birth_date:
-                    # Логика форматирования списка осталась от старого запроса, но
-                    # я ее не меняю здесь, т.к. мы фокусируемся на исправлении отступов.
-                    # Рекомендую потом заменить этот блок на более подробный, как мы обсуждали.
                     age_num = service.calculate_age(member.birth_date)
                     age_str = pluralize_years(age_num)  
                     
@@ -431,13 +323,27 @@ class FamilyBot:
 
     # --- ЛОГИКА УВЕДОМЛЕНИЙ И ПЛАНИРОВЩИК ---
 
+    async def today(self, update, context):
+        # 💡 ОТЛАДКА: Сообщаем, что команда была получена
+        print(f"DEBUG: Команда /today получена. Текущая дата (date.today()): {date.today()}")
+        await self.send_today_events(update.message.chat_id)
+
+    async def test_notify(self, update, context):
+        await update.message.reply_text("🔔 Тестирую уведомления...")
+        await self.send_today_events(update.message.chat_id)
+
     async def send_today_events(self, chat_id):
         db = SessionLocal()
         try:
             service = NotificationService(db)
-            # 🎯 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Добавили death_anniversaries
             birthdays, events, death_anniversaries = service.get_today_events()
 
+            # 🎯 КЛЮЧЕВОЙ ОТЛАДОЧНЫЙ ВЫВОД:
+            print(f"DEBUG: Поиск событий завершен.")
+            print(f"DEBUG: Найдено дней рождений: {len(birthdays)}")
+            print(f"DEBUG: Найдено других событий: {len(events)}")
+            print(f"DEBUG: Найдено годовщин смерти: {len(death_anniversaries)}")
+            
             # Проверяем все три списка
             if not birthdays and not events and not death_anniversaries:
                 await self.application.bot.send_message(
@@ -446,13 +352,32 @@ class FamilyBot:
                 )
                 return
 
-            # 1. Отправка уведомлений о днях рождения (и живых, и ушедших)
+            # --- 1. Отправка дней рождения (Birthdays) ---
+            for member in birthdays: # Используем member для ясности
+                message = service.format_birthday_message(member)
+                
+                # Используем фото, привязанное к члену семьи
+                if member.photo_file_id:
+                     await self.application.bot.send_photo(
+                        chat_id=chat_id, 
+                        photo=member.photo_file_id,
+                        caption=message,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                else:
+                    await self.application.bot.send_message(
+                        chat_id=chat_id, 
+                        text=message, 
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                await asyncio.sleep(0.5)
+
+            # --- 2. Отправка других событий (Events) ---
             for event in events:
                 message = service.format_event_message(event)
                 photo_id = service.get_event_photo_id(event) 
 
                 # ✅ ИСПРАВЛЕНИЕ: Проверяем, что photo_id - это строка И она не пустая.
-                # Эта проверка предотвращает ошибку, когда photo_id является 'list'
                 if isinstance(photo_id, str) and photo_id.strip(): 
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
@@ -466,39 +391,13 @@ class FamilyBot:
                         text=message, 
                         parse_mode=ParseMode.MARKDOWN
                     )
-                    
                 await asyncio.sleep(0.5)
-            # 2. Отправка уведомлений о других событиях
-            for event in events:
-                # 🛑 ИСПРАВЛЕННЫЕ ОТСТУПЫ СТАРТУЮТ ЗДЕСЬ
-                message = service.format_event_message(event)
-                
-                # 🎯 Пытаемся получить photo_id для события
-                photo_id = service.get_event_photo_id(event) 
 
-                if photo_id and photo_id.strip(): 
-                    await self.application.bot.send_photo(
-                        chat_id=chat_id, 
-                        photo=photo_id,
-                        caption=message,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
-                    # Отправка только текста
-                    await self.application.bot.send_message(
-                        chat_id=chat_id, 
-                        text=message, 
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                    
-                await asyncio.sleep(0.5)
-                # 🛑 ИСПРАВЛЕННЫЕ ОТСТУПЫ ДЛЯ ЭТОГО БЛОКА ЗАКОНЧИЛИСЬ
-
-            # 3. Отправка уведомлений о годовщинах смерти
+            # --- 3. Отправка годовщин смерти (Death Anniversaries) ---
             for member in death_anniversaries:
                 message = service.format_death_anniversary_message(member)
                 
-                # Добавим логику с фото для годовщин смерти (поскольку member.photo_file_id там есть)
+                # Используем фото, привязанное к члену семьи
                 if member.photo_file_id:
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
@@ -516,26 +415,24 @@ class FamilyBot:
 
         except Exception as e:
             print(f"❌ Ошибка при отправке уведомления в чат {chat_id}: {e}")
-            # Добавим отправку сообщения об ошибке, если бот смог подключиться
             try:
                 await self.application.bot.send_message(
                     chat_id=chat_id,
                     text="❌ Ошибка при получении данных для уведомления"
                 )
             except Exception:
-                pass # Пропускаем, если даже отправка сообщения об ошибке не сработала
+                pass 
         finally:
             db.close()
 
     def schedule_daily_notifications(self):
         """Настраивает ежедневное уведомление в 9:00 UTC с помощью AsyncIOScheduler."""
-        # ✅ ИСПРАВЛЕНИЕ 3: Инициализируем AsyncIOScheduler
         scheduler = AsyncIOScheduler() 
 
         scheduler.add_job(
             self.send_daily_reminder,
             'cron',
-            hour=9, # 9:00 UTC
+            hour=9, 
             minute=0
         )
         print("✅ Планировщик ежедневных уведомлений настроен.")
@@ -546,7 +443,6 @@ class FamilyBot:
         target_chat_id = Config.ADMIN_CHAT_ID
         if target_chat_id:
             print(f"⏰ Отправка ежедневного уведомления в чат {target_chat_id}...")
-            # Поскольку это уже асинхронная функция, await здесь корректен
             await self.send_today_events(target_chat_id) 
         else:
             print("❌ ADMIN_CHAT_ID не установлен, ежедневное уведомление пропущено.")
@@ -556,18 +452,14 @@ class FamilyBot:
     def run(self):
         """Запускаем бота через Long Polling и активируем планировщик."""
         
-        # 1. Настраиваем планировщик и получаем объект scheduler
         scheduler = self.schedule_daily_notifications() 
         
-        # ✅ ИСПРАВЛЕНИЕ 4: Используем post_init для установки команд
         self.application.post_init = self.set_commands
 
-        # 2. Привязываем планировщик к Application (JobQueue) и запускаем его
         self.application.job_queue.scheduler = scheduler
         self.application.job_queue.scheduler.start()
         print("✅ Планировщик ежедневных уведомлений запущен.")
 
-        # 3. Запускаем основной цикл Telegram (Long Polling)
         print("📡 Запуск бота через Long Polling...")
         self.application.run_polling()
 
