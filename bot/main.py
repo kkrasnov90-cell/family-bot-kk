@@ -13,7 +13,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- ИМПОРТЫ МОДЕЛЕЙ И БАЗЫ ДАННЫХ (КРИТИЧЕСКИ ВАЖНО) ---
 from database.connection import SessionLocal, engine
-from database.models import Base, FamilyMember, FamilyEvent
+# ВАЖНО: FamilyMember теперь требует поле 'gender'
+from database.models import Base, FamilyMember, FamilyEvent 
 from services.notification_service import NotificationService
 from config import Config
 
@@ -51,16 +52,21 @@ def seed_family():
     """Добавляет начальные данные, только если база ПУСТА."""
     db = SessionLocal()
     try:
+        # ПРИМЕЧАНИЕ: Добавление seed-данных будет работать, только если вы обновили
+        # database/models.py и добавили default='M' для поля gender.
         if db.query(FamilyMember).count() == 0:
             initial_members = [
-                ("Кирилл Краснов", date(1990, 4, 11)), 
+                ("Кирилл Краснов", date(1990, 4, 11)), # Предполагается, что в БД дефолт M
             ]
             for name, bday in initial_members:
-                db.add(FamilyMember(name=name, birth_date=bday))
+                # Временно используем gender='M' для старых данных
+                db.add(FamilyMember(name=name, birth_date=bday, gender='M')) 
             db.commit()
             print("✅ Семья добавлена в базу (инициализация).")
         else:
             print("ℹ️ Семья уже существует")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации seed-данных: {e}. Убедитесь, что models.py обновлен.")
     finally:
         db.close()
 
@@ -247,28 +253,55 @@ class FamilyBot:
             db.close()
 
     async def add_member(self, update, context):
-        """Добавляет нового члена семьи в базу данных."""
+        """
+        Добавляет нового члена семьи в базу данных.
+        Формат: /add_member Имя Фамилия M/F ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]
+        """
         if not self.is_admin_chat(update.message.chat_id): 
             return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может добавлять членов семьи.", parse_mode=ParseMode.MARKDOWN)
         
         args = context.args
         db = SessionLocal()
 
-        if len(args) < 3 or len(args) > 4: 
-            return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]`", parse_mode=ParseMode.MARKDOWN)
+        # 🎯 ИСПРАВЛЕНИЕ: Теперь ожидаем 4 или 5 аргументов (Имя, Фамилия, Пол, ДР, [ДС])
+        if len(args) < 4 or len(args) > 5:
+            return await update.message.reply_text(
+                "❌ **Неверный формат команды!**\n\n"
+                "Используйте один из форматов:\n"
+                "1. **Для живого:**\n `/add_member Имя Фамилия M/F ДД.ММ.ГГГГ`\n\n"
+                "2. **Для ушедшего:**\n `/add_member Имя Фамилия M/F ДД.ММ.ГГГГ ДД.ММ.ГГГГ`\n\n"
+                "**M** - Мужчина, **F** - Женщина.\n"
+                "Пример: `/add_member Юлия Фоминых F 27.11.1989`",
+                parse_mode=ParseMode.MARKDOWN
+            )
 
         name = f"{args[0]} {args[1]}" 
-        birth_date_str = args[2]
-        death_date_str = args[3] if len(args) == 4 else None
+        gender = args[2].upper()  # Получаем и переводим в верхний регистр (M или F)
+        birth_date_str = args[3]
+        death_date_str = args[4] if len(args) == 5 else None
         
+        # 🎯 ИСПРАВЛЕНИЕ: Проверка корректности пола
+        if gender not in ['M', 'F']:
+             return await update.message.reply_text(
+                "❌ **Ошибка:** Пол должен быть указан как **M** (Мужчина) или **F** (Женщина).",
+                parse_mode=ParseMode.MARKDOWN
+            )
+
         birth_date = None
         death_date = None
 
         try:
+            # Парсинг дат
             birth_date = datetime.strptime(birth_date_str, '%d.%m.%Y').date()
             if death_date_str: death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
             
-            new_member = FamilyMember(name=name, birth_date=birth_date, death_date=death_date)
+            # 🎯 ИСПРАВЛЕНИЕ: Добавляем пол в модель
+            new_member = FamilyMember(
+                name=name, 
+                birth_date=birth_date, 
+                death_date=death_date,
+                gender=gender # <--- ПЕРЕДАЕМ ПОЛ
+            )
             db.add(new_member)
             db.commit()
             
@@ -277,6 +310,7 @@ class FamilyBot:
             
             await update.message.reply_text(
                 f"{status} **{name}** успешно добавлен(а) в семью!\n"
+                f"Пол: **{gender}**\n"
                 f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}{death_info}",
                 parse_mode=ParseMode.MARKDOWN
             )
@@ -306,8 +340,9 @@ class FamilyBot:
                     age_str = pluralize_years(age_num)  
                     
                     death_info = f" (ушел {member.death_date.strftime('%d.%m.%Y')})" if member.death_date else ""
+                    gender_info = f" ({member.gender})" if member.gender else ""
                     
-                    message += f"• {member.name} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str}){death_info}\n"
+                    message += f"• {member.name}{gender_info} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str}){death_info}\n"
                 else:
                     message += f"• {member.name}\n"
 
@@ -348,6 +383,7 @@ class FamilyBot:
 
             # --- 1. Отправка дней рождения (Birthdays) ---
             for member in birthdays: 
+                # message генерируется в service и содержит Ей/Ему
                 message = service.format_birthday_message(member)
                 
                 if member.photo_file_id:
@@ -387,6 +423,7 @@ class FamilyBot:
 
             # --- 3. Отправка годовщин смерти (Death Anniversaries) ---
             for member in death_anniversaries:
+                # message генерируется в service и содержит Её/Его
                 message = service.format_death_anniversary_message(member)
                 
                 if member.photo_file_id:
