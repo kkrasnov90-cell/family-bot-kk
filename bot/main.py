@@ -447,25 +447,27 @@ class FamilyBot:
                 return
 
             # 1. Отправка уведомлений о днях рождения (и живых, и ушедших)
-            for member in birthdays:
-                message = service.format_birthday_message(member)
-                
-                if member.photo_file_id:
+            for event in events:
+                message = service.format_event_message(event)
+                photo_id = service.get_event_photo_id(event) 
+
+                # ✅ ИСПРАВЛЕНИЕ: Проверяем, что photo_id - это строка И она не пустая.
+                # Эта проверка предотвращает ошибку, когда photo_id является 'list'
+                if isinstance(photo_id, str) and photo_id.strip(): 
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
-                        photo=member.photo_file_id, 
-                        caption=message, 
+                        photo=photo_id,
+                        caption=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 else:
                     await self.application.bot.send_message(
                         chat_id=chat_id, 
                         text=message, 
-                        parse_mode=ParseMode.MARKDOWN # Добавляем Markdown для форматирования
+                        parse_mode=ParseMode.MARKDOWN
                     )
-                        
+                    
                 await asyncio.sleep(0.5)
-
             # 2. Отправка уведомлений о других событиях
             for event in events:
                 # 🛑 ИСПРАВЛЕННЫЕ ОТСТУПЫ СТАРТУЮТ ЗДЕСЬ
