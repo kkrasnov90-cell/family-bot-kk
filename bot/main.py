@@ -474,8 +474,7 @@ class FamilyBot:
                 # 🎯 Пытаемся получить photo_id для события
                 photo_id = service.get_event_photo_id(event) 
 
-                if photo_id:
-                    # Отправка ФОТО с подписью (Caption)
+                if photo_id and photo_id.strip(): 
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
                         photo=photo_id,
