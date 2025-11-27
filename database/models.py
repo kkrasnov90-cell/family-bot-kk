@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from datetime import date, datetime 
 import enum
 from .connection import Base
+from sqlalchemy import Column, Integer, String, Date, Boolean
 
 class EventType(enum.Enum):
     """Типы событий для нашего бота"""
@@ -27,6 +28,8 @@ class FamilyMember(Base):
     
     # Поле для хранения ID файла фотографии в Telegram
     photo_file_id: Mapped[str | None] = mapped_column(String, nullable=True) 
+    # 🎯 НОВОЕ ПОЛЕ: Пол (M/F)
+    gender = Column(String(1), nullable=True, default='M')
 
     def __repr__(self) -> str:
         return f"FamilyMember(id={self.id!r}, name={self.name!r})"
