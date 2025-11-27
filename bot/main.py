@@ -466,13 +466,28 @@ class FamilyBot:
 
             # 2. Отправка уведомлений о других событиях
             for event in events:
-                message = service.format_event_message(event)
-                await self.application.bot.send_message(
-                    chat_id=chat_id, 
-                    text=message, 
-                    parse_mode=ParseMode.MARKDOWN
-                )
-                await asyncio.sleep(0.5)
+    message = service.format_event_message(event)
+    
+    # 🎯 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Пытаемся получить photo_id для события
+    photo_id = service.get_event_photo_id(event) 
+
+    if photo_id:
+        # Отправка ФОТО с подписью (Caption)
+        await self.application.bot.send_photo(
+            chat_id=chat_id, 
+            photo=photo_id,
+            caption=message,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        # Отправка только текста
+        await self.application.bot.send_message(
+            chat_id=chat_id, 
+            text=message, 
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+    await asyncio.sleep(0.5)
                 
             # 3. Отправка уведомлений о годовщинах смерти
             for member in death_anniversaries:
