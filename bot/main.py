@@ -6,7 +6,7 @@ import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from apscheduler.schedulers.asyncio import AsyncIOScheduler 
 from telegram.constants import ParseMode 
-from telegram.request import HTTPXRequest # Импортируем для настройки таймаута (опционально)
+from telegram.request import HTTPXRequest 
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,7 +52,6 @@ def seed_family():
     db = SessionLocal()
     try:
         if db.query(FamilyMember).count() == 0:
-            # 💡 Поставьте дату, которая НЕ СЕГОДНЯ, чтобы не мешало отладке
             initial_members = [
                 ("Кирилл Краснов", date(1990, 4, 11)), 
             ]
@@ -71,8 +70,6 @@ seed_family()
 
 class FamilyBot:
     def __init__(self):
-        # Используем токен из Config для создания приложения
-        # Опционально: Устанавливаем таймаут для повышения устойчивости к NetworkError
         self.request_config = HTTPXRequest(read_timeout=60.0) 
         
         self.application = Application.builder() \
@@ -122,10 +119,9 @@ class FamilyBot:
         print("✅ Меню команд Telegram успешно установлено.")
 
 
-    # --- ХЕНДЛЕРЫ КОМАНД (Большая часть пропущена для краткости) ---
+    # --- ХЕНДЛЕРЫ КОМАНД ---
 
     async def start(self, update, context):
-        # ... (Ваш код для start)
         GREETING_PHOTO_ID = getattr(Config, 'GREETING_PHOTO_ID', None)
         message_text = (
             "**👋 С возвращением! Я Семейный Хранитель.**\n\n"
@@ -152,7 +148,6 @@ class FamilyBot:
             )
 
     async def file_id_command(self, update, context):
-        # ... (Ваш код для file_id_command)
         if not self.is_admin_chat(update.message.chat_id):
             return await update.message.reply_text("❌ **Доступ запрещен!** Эта команда только для администратора.", parse_mode=ParseMode.MARKDOWN)
 
@@ -160,7 +155,6 @@ class FamilyBot:
         if not replied_message:
             return await update.message.reply_text("❌ **Используйте команду как ответ на медиафайл**", parse_mode=ParseMode.MARKDOWN)
         
-        # ... (Логика получения file_id)
         file_id = None
         file_type = None
 
@@ -186,7 +180,7 @@ class FamilyBot:
 
 
     async def set_photo_command(self, update, context):
-        # ... (Ваш код для set_photo_command)
+        """Инструктирует пользователя, как установить фотографию."""
         await update.message.reply_text(
             "📸 Чтобы установить фотографию для члена семьи:\n\n"
             "1. Найдите сообщение, где вы <b>добавили</b> этого члена семьи (через <code>/add_member</code>).\n"
@@ -196,7 +190,7 @@ class FamilyBot:
         )
 
     async def handle_photo_reply(self, update, context):
-        # ... (Ваш код для handle_photo_reply)
+        """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
         if not self.is_admin_chat(update.message.chat_id): return
         if not update.message.reply_to_message: return 
 
@@ -226,13 +220,15 @@ class FamilyBot:
             db.close()
             
     async def remove_member(self, update, context):
-        # ... (Ваш код для remove_member)
-        if not self.is_admin_chat(update.message.chat_id): return await update.message.reply_text("❌ **Доступ запрещен!**", parse_mode=ParseMode.MARKDOWN)
-        
+        """Удаляет члена семьи из базы данных по имени и фамилии."""
+        if not self.is_admin_chat(update.message.chat_id): 
+             return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может удалять членов семьи.", parse_mode=ParseMode.MARKDOWN)
+
         args = context.args
         db = SessionLocal()
 
-        if len(args) < 2: return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/remove_member Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
+        if len(args) < 2: 
+            return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/remove_member Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
 
         name_to_remove = " ".join(args).strip()
 
@@ -251,13 +247,15 @@ class FamilyBot:
             db.close()
 
     async def add_member(self, update, context):
-        # ... (Ваш код для add_member)
-        if not self.is_admin_chat(update.message.chat_id): return await update.message.reply_text("❌ **Доступ запрещен!**", parse_mode=ParseMode.MARKDOWN)
+        """Добавляет нового члена семьи в базу данных."""
+        if not self.is_admin_chat(update.message.chat_id): 
+            return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может добавлять членов семьи.", parse_mode=ParseMode.MARKDOWN)
         
         args = context.args
         db = SessionLocal()
 
-        if len(args) < 3 or len(args) > 4: return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]`", parse_mode=ParseMode.MARKDOWN)
+        if len(args) < 3 or len(args) > 4: 
+            return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/add_member Имя Фамилия ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]`", parse_mode=ParseMode.MARKDOWN)
 
         name = f"{args[0]} {args[1]}" 
         birth_date_str = args[2]
@@ -292,7 +290,6 @@ class FamilyBot:
             db.close()
 
     async def list_members(self, update, context):
-        # ... (Ваш код для list_members)
         db = SessionLocal()
         try:
             service = NotificationService(db)
@@ -324,8 +321,7 @@ class FamilyBot:
     # --- ЛОГИКА УВЕДОМЛЕНИЙ И ПЛАНИРОВЩИК ---
 
     async def today(self, update, context):
-        # 💡 ОТЛАДКА: Сообщаем, что команда была получена
-        print(f"DEBUG: Команда /today получена. Текущая дата (date.today()): {date.today()}")
+        """Обработчик команды /today. Немедленно запускает отправку событий."""
         await self.send_today_events(update.message.chat_id)
 
     async def test_notify(self, update, context):
@@ -337,12 +333,10 @@ class FamilyBot:
         try:
             service = NotificationService(db)
             birthdays, events, death_anniversaries = service.get_today_events()
-
-            # 🎯 КЛЮЧЕВОЙ ОТЛАДОЧНЫЙ ВЫВОД:
-            print(f"DEBUG: Поиск событий завершен.")
-            print(f"DEBUG: Найдено дней рождений: {len(birthdays)}")
-            print(f"DEBUG: Найдено других событий: {len(events)}")
-            print(f"DEBUG: Найдено годовщин смерти: {len(death_anniversaries)}")
+            
+            # Логирование для сервера (чисто)
+            if birthdays or events or death_anniversaries:
+                 print(f"INFO: Обнаружены события на сегодня: ДР={len(birthdays)}, События={len(events)}, Смерти={len(death_anniversaries)}")
             
             # Проверяем все три списка
             if not birthdays and not events and not death_anniversaries:
@@ -353,10 +347,9 @@ class FamilyBot:
                 return
 
             # --- 1. Отправка дней рождения (Birthdays) ---
-            for member in birthdays: # Используем member для ясности
+            for member in birthdays: 
                 message = service.format_birthday_message(member)
                 
-                # Используем фото, привязанное к члену семьи
                 if member.photo_file_id:
                      await self.application.bot.send_photo(
                         chat_id=chat_id, 
@@ -377,7 +370,6 @@ class FamilyBot:
                 message = service.format_event_message(event)
                 photo_id = service.get_event_photo_id(event) 
 
-                # ✅ ИСПРАВЛЕНИЕ: Проверяем, что photo_id - это строка И она не пустая.
                 if isinstance(photo_id, str) and photo_id.strip(): 
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
@@ -397,7 +389,6 @@ class FamilyBot:
             for member in death_anniversaries:
                 message = service.format_death_anniversary_message(member)
                 
-                # Используем фото, привязанное к члену семьи
                 if member.photo_file_id:
                     await self.application.bot.send_photo(
                         chat_id=chat_id, 
