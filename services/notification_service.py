@@ -3,6 +3,7 @@ from datetime import datetime, date
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
 # Убедитесь, что импорты ниже верны для ваших моделей
+# ВАЖНО: FamilyMember должен быть обновлен для поля gender
 from database.models import FamilyMember, FamilyEvent, EventType 
 
 # 🎯 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО СКЛОНЕНИЯ
@@ -62,16 +63,29 @@ class NotificationService:
         return today.year - event_date.year
 
     def format_birthday_message(self, member):
-        """Форматируем сообщение о дне рождения (с учетом статуса)"""
+        """Форматируем сообщение о дне рождения (с учетом статуса и пола)"""
         age = self.calculate_age(member.birth_date)
+        age_str = pluralize_years(age)
         
+        # 🎯 НОВОЕ ИСПРАВЛЕНИЕ: Определение местоимений
+        if member.gender == 'F':
+            # Женщина
+            pronoun_case_1 = "Ей"
+            pronoun_case_2 = "ее" # Мы помним и любим ее (винительный падеж)
+        else: 
+            # Мужчина или пол не указан (дефолт 'M')
+            pronoun_case_1 = "Ему"
+            pronoun_case_2 = "его" # Мы помним и любим его (винительный падеж)
+
         if member.death_date:
+            # Формат для ушедших
             return (
                 f"🕯️ Сегодня был бы день рождения **{member.name}**!\n"
-                f"Мы помним и любим его. Ему исполнилось бы {pluralize_years(age)}. 🙏"
+                f"Мы помним и любим {pronoun_case_2}. {pronoun_case_1} исполнилось бы {age_str}. 🙏"
             )
         else:
-            return f"🎉 Сегодня день рождения **{member.name}**!\nЕму исполняется {pluralize_years(age)}! 🎂"
+            # Формат для живых
+            return f"🎉 Сегодня день рождения **{member.name}**!\n{pronoun_case_1} исполняется {age_str}! 🎂"
 
     def format_event_message(self, event: FamilyEvent) -> str:
         """Форматирует сообщение об уведомлении о годовщине события."""
@@ -86,13 +100,21 @@ class NotificationService:
         return message
         
     def format_death_anniversary_message(self, member):
-        """Форматируем сообщение о годовщине смерти"""
+        """Форматируем сообщение о годовщине смерти (с учетом пола)"""
         years_passed = self.calculate_years_passed(member.death_date)
         years_str = pluralize_years(years_passed)
         
+        # 🎯 НОВОЕ ИСПРАВЛЕНИЕ: Определение местоимения
+        if member.gender == 'F':
+            pronoun_case_1 = "Её" # Её нет с нами
+            pronoun_case_2 = "Ушла" # Ушла из жизни
+        else:
+            pronoun_case_1 = "Его"
+            pronoun_case_2 = "Ушел"
+            
         return (
             f"🕯️ Сегодня {years_str} со дня ухода из жизни **{member.name}**.\n"
-            f"Дата смерти: {member.death_date.strftime('%d.%m.%Y')}. "
+            f"{pronoun_case_1} нет с нами. {pronoun_case_2} из жизни {member.death_date.strftime('%d.%m.%Y')}. "
             f"Светлая память. 🙏"
         )
 
