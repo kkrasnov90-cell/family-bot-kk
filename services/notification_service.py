@@ -127,7 +127,7 @@ class NotificationService:
     def format_event_message(self, event: FamilyEvent) -> str:
         """Форматирует сообщение об уведомлении о годовщине события."""
         
-        years_passed = self.calculate_years_passed(event.event_date) 
+        years_passed = self.calculate_years_passed(event.event_date)
         years_str = pluralize_years(years_passed)
         
         message = (
