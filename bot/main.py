@@ -43,6 +43,9 @@ def pluralize_years(age):
 
 
 # --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+# ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: ЭТА СТРОКА УДАЛИТ ВСЕ ДАННЫЕ ИЗ БАЗЫ!
+# УДАЛИТЬ ЕЁ ПОСЛЕ УСПЕШНОГО ЗАПУСКА!
+Base.metadata.drop_all(bind=engine)
 
 
 # 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ. 
