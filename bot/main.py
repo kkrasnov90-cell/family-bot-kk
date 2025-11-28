@@ -97,6 +97,7 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("test_notify", self.test_notify))
         self.application.add_handler(CommandHandler("add_member", self.add_member))
         self.application.add_handler(CommandHandler("remove_member", self.remove_member))
+        self.application.add_handler(CommandHandler("add_event", self.add_event))
         self.application.add_handler(CommandHandler("list", self.list_members))
         self.application.add_handler(CommandHandler("set_photo", self.set_photo_command))
 
@@ -113,6 +114,7 @@ class FamilyBot:
         commands = [
             ("start", "👋 Приветствие и цели бота"),
             ("today", "📅 События на сегодня"),
+            ("add_event", "➕ Добавить семейное событие (админ)"),
             ("list", "👥 Показать всех членов семьи"),
             ("add_member", "➕ Добавить члена семьи (админ)"),
             ("remove_member", "🗑️ Удалить члена семьи (админ)"),
@@ -320,6 +322,73 @@ class FamilyBot:
         except Exception as e:
             db.rollback()
             await update.message.reply_text(f"❌ Произошла ошибка при сохранении: {e}")
+        finally:
+            db.close()
+
+    async def add_event(self, update, context):
+        """
+        Добавляет новое семейное событие.
+        Формат: /add_event Название_события ДД.ММ.ГГГГ [Описание]
+        """
+        if not self.is_admin_chat(update.message.chat_id):
+            return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может добавлять события.", parse_mode=ParseMode.MARKDOWN)
+
+        args = context.args
+        db = SessionLocal()
+
+        # Ожидаем минимум 2 аргумента: Название (может быть в кавычках) и Дата.
+        if len(args) < 2:
+            return await update.message.reply_text(
+                "❌ **Неверный формат команды!**\n\n"
+                "Используйте формат:\n"
+                "`/add_event \"Название события\" ДД.ММ.ГГГГ [Описание]`\n\n"
+                "Пример: `/add_event \"Годовщина свадьбы\" 15.07.2010 Наша первая важная дата`",
+                parse_mode=ParseMode.MARKDOWN
+            )
+
+        # Обработка аргументов (Название, Дата, Описание)
+        event_date_str = args[-1]
+
+        # Если аргументов 3 или больше, то первый — название, последний — дата, остальное — описание
+        if len(args) > 2:
+            # Название может быть в кавычках или без
+            title = args[0]
+            description = " ".join(args[1:-1])
+        elif len(args) == 2:
+            # Название и Дата
+            title = args[0]
+            description = ""
+        else:
+             # Это не должно случиться благодаря проверке len(args) < 2
+             return
+
+        # Убираем кавычки, если они есть
+        title = title.strip('"\'')
+
+        try:
+            event_date = datetime.strptime(event_date_str, '%d.%m.%Y').date()
+
+            new_event = FamilyEvent(
+                title=title,
+                date=event_date,
+                description=description
+            )
+            db.add(new_event)
+            db.commit()
+
+            description_info = f"\nОписание: _{description}_" if description else ""
+
+            await update.message.reply_text(
+                f"🗓️ **Событие** \"{title}\" успешно добавлено!\n"
+                f"Дата: **{event_date.strftime('%d.%m.%Y')}**{description_info}",
+                parse_mode=ParseMode.MARKDOWN
+            )
+
+        except ValueError:
+            await update.message.reply_text("❌ **Ошибка:** Неправильный формат даты. Дата должна быть в формате **ДД.ММ.ГГГГ**.", parse_mode=ParseMode.MARKDOWN)
+        except Exception as e:
+            db.rollback()
+            await update.message.reply_text(f"❌ Произошла ошибка при сохранении события: {e}")
         finally:
             db.close()
 
