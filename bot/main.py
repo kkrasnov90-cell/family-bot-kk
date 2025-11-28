@@ -383,7 +383,7 @@ class FamilyBot:
 
             new_event = FamilyEvent(
                 title=title,
-                date=event_date,
+                event_date=event_date,
                 description=description
             )
             db.add(new_event)
