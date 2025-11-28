@@ -1,12 +1,12 @@
 import sys
 import os
-from datetime import date, datetime 
+from datetime import date, datetime
 import secrets
 import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from apscheduler.schedulers.asyncio import AsyncIOScheduler 
-from telegram.constants import ParseMode 
-from telegram.request import HTTPXRequest 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram.constants import ParseMode
+from telegram.request import HTTPXRequest
 
 # 🎯 Добавляем корневую папку проекта в пути Python
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # --- ИМПОРТЫ МОДЕЛЕЙ И БАЗЫ ДАННЫХ (КРИТИЧЕСКИ ВАЖНО) ---
 from database.connection import SessionLocal, engine
 # ВАЖНО: FamilyMember теперь требует поле 'gender'
-from database.models import Base, FamilyMember, FamilyEvent 
+from database.models import Base, FamilyMember, FamilyEvent
 from services.notification_service import NotificationService
 from config import Config
 
@@ -26,14 +26,14 @@ def pluralize_years(age):
     """Возвращает возраст с правильным склонением слова 'год/года/лет'."""
     if age is None:
         return ""
-    
+
     # Специальный случай для чисел 11-14 (11, 12, 13, 14 лет)
     if 11 <= age % 100 <= 14:
         return f"{age} лет"
 
     # Общее правило, основанное на последней цифре
     last_digit = age % 10
-    
+
     if last_digit == 1:
         return f"{age} год"  # 1, 21, 31 год
     elif 2 <= last_digit <= 4:
@@ -45,9 +45,8 @@ def pluralize_years(age):
 # --- 🚀 ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 
 
-
-# 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ. 
-Base.metadata.create_all(bind=engine) 
+# 1. ГАРАНТИРУЕМ СОЗДАНИЕ ТАБЛИЦ.
+Base.metadata.create_all(bind=engine)
 
 def seed_family():
     """Добавляет начальные данные, только если база ПУСТА."""
@@ -61,7 +60,7 @@ def seed_family():
             ]
             for name, bday in initial_members:
                 # Временно используем gender='M' для старых данных
-                db.add(FamilyMember(name=name, birth_date=bday, gender='M')) 
+                db.add(FamilyMember(name=name, birth_date=bday, gender='M'))
             db.commit()
             print("✅ Семья добавлена в базу (инициализация).")
         else:
@@ -77,8 +76,8 @@ seed_family()
 
 class FamilyBot:
     def __init__(self):
-        self.request_config = HTTPXRequest(read_timeout=60.0) 
-        
+        self.request_config = HTTPXRequest(read_timeout=60.0)
+
         self.application = Application.builder() \
             .token(Config.BOT_TOKEN) \
             .request(self.request_config) \
@@ -100,10 +99,10 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("remove_member", self.remove_member))
         self.application.add_handler(CommandHandler("list", self.list_members))
         self.application.add_handler(CommandHandler("set_photo", self.set_photo_command))
-        
+
         # 🎯 ПОСТОЯННАЯ АДМИН-КОМАНДА /file_id
         self.application.add_handler(CommandHandler("file_id", self.file_id_command))
-        
+
         # Обработчик ответов на фото
         self.application.add_handler(MessageHandler(
             filters.PHOTO & filters.REPLY, self.handle_photo_reply
@@ -119,9 +118,9 @@ class FamilyBot:
             ("remove_member", "🗑️ Удалить члена семьи (админ)"),
             ("set_photo", "📸 Инструкция: установить фото (админ)"),
             ("test_notify", "🔔 Проверить уведомления"),
-            ("file_id", "🔑 Получить ID файла (админ)"), 
+            ("file_id", "🔑 Получить ID файла (админ)"),
         ]
-        
+
         await self.application.bot.set_my_commands(commands)
         print("✅ Меню команд Telegram успешно установлено.")
 
@@ -146,12 +145,12 @@ class FamilyBot:
             await update.message.reply_photo(
                 photo=GREETING_PHOTO_ID,
                 caption=message_text,
-                parse_mode=ParseMode.MARKDOWN 
+                parse_mode=ParseMode.MARKDOWN
             )
         else:
             await update.message.reply_text(
                 message_text,
-                parse_mode=ParseMode.MARKDOWN 
+                parse_mode=ParseMode.MARKDOWN
             )
 
     async def file_id_command(self, update, context):
@@ -161,7 +160,7 @@ class FamilyBot:
         replied_message = update.message.reply_to_message
         if not replied_message:
             return await update.message.reply_text("❌ **Используйте команду как ответ на медиафайл**", parse_mode=ParseMode.MARKDOWN)
-        
+
         file_id = None
         file_type = None
 
@@ -193,18 +192,18 @@ class FamilyBot:
             "1. Найдите сообщение, где вы <b>добавили</b> этого члена семьи (через <code>/add_member</code>).\n"
             "2. <b>Ответьте (Reply)</b> на это сообщение командой: <code>/set_photo Имя Фамилия</code>\n"
             "3. <b>Ответьте (Reply)</b> на вашу же команду <code>/set_photo...</code> <b>самой фотографией!</b>",
-            parse_mode=ParseMode.HTML 
+            parse_mode=ParseMode.HTML
         )
 
     async def handle_photo_reply(self, update, context):
         """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
         if not self.is_admin_chat(update.message.chat_id): return
-        if not update.message.reply_to_message: return 
+        if not update.message.reply_to_message: return
 
         original_message = update.message.reply_to_message.text
-        if not original_message or not original_message.startswith('/set_photo'): return 
+        if not original_message or not original_message.startswith('/set_photo'): return
 
-        args = original_message.split()[1:] 
+        args = original_message.split()[1:]
         if len(args) < 2:
             return await update.message.reply_text("❌ **Не удалось определить имя.** Используйте формат `/set_photo Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
 
@@ -225,16 +224,16 @@ class FamilyBot:
             await update.message.reply_text(f"❌ Произошла ошибка при сохранении фото: {e}")
         finally:
             db.close()
-            
+
     async def remove_member(self, update, context):
         """Удаляет члена семьи из базы данных по имени и фамилии."""
-        if not self.is_admin_chat(update.message.chat_id): 
+        if not self.is_admin_chat(update.message.chat_id):
              return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может удалять членов семьи.", parse_mode=ParseMode.MARKDOWN)
 
         args = context.args
         db = SessionLocal()
 
-        if len(args) < 2: 
+        if len(args) < 2:
             return await update.message.reply_text("❌ **Неверный формат команды!** Используйте `/remove_member Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
 
         name_to_remove = " ".join(args).strip()
@@ -258,9 +257,9 @@ class FamilyBot:
         Добавляет нового члена семьи в базу данных.
         Формат: /add_member Имя Фамилия M/F ДД.ММ.ГГГГ [ДД.ММ.ГГГГ]
         """
-        if not self.is_admin_chat(update.message.chat_id): 
+        if not self.is_admin_chat(update.message.chat_id):
             return await update.message.reply_text("❌ **Доступ запрещен!** Только администратор может добавлять членов семьи.", parse_mode=ParseMode.MARKDOWN)
-        
+
         args = context.args
         db = SessionLocal()
 
@@ -276,11 +275,11 @@ class FamilyBot:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        name = f"{args[0]} {args[1]}" 
+        name = f"{args[0]} {args[1]}"
         gender = args[2].upper()  # Получаем и переводим в верхний регистр (M или F)
         birth_date_str = args[3]
         death_date_str = args[4] if len(args) == 5 else None
-        
+
         # 🎯 ИСПРАВЛЕНИЕ: Проверка корректности пола
         if gender not in ['M', 'F']:
              return await update.message.reply_text(
@@ -295,27 +294,27 @@ class FamilyBot:
             # Парсинг дат
             birth_date = datetime.strptime(birth_date_str, '%d.%m.%Y').date()
             if death_date_str: death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
-            
+
             # 🎯 ИСПРАВЛЕНИЕ: Добавляем пол в модель
             new_member = FamilyMember(
-                name=name, 
-                birth_date=birth_date, 
+                name=name,
+                birth_date=birth_date,
                 death_date=death_date,
                 gender=gender # <--- ПЕРЕДАЕМ ПОЛ
             )
             db.add(new_member)
             db.commit()
-            
+
             status = "🎉 **(Живой)**" if death_date is None else "🕯️ **(Ушедший)**"
-            death_info = f"\nДата смерти: {death_date.strftime('%d.%m.%Y')}" if death_date else "" 
-            
+            death_info = f"\nДата смерти: {death_date.strftime('%d.%m.%Y')}" if death_date else ""
+
             await update.message.reply_text(
                 f"{status} **{name}** успешно добавлен(а) в семью!\n"
                 f"Пол: **{gender}**\n"
                 f"Дата рождения: {birth_date.strftime('%d.%m.%Y')}{death_info}",
                 parse_mode=ParseMode.MARKDOWN
             )
-            
+
         except ValueError:
             await update.message.reply_text("❌ **Ошибка:** Неправильный формат даты. Дата должна быть в формате **ДД.ММ.ГГГГ**.", parse_mode=ParseMode.MARKDOWN)
         except Exception as e:
@@ -338,11 +337,11 @@ class FamilyBot:
             for member in members:
                 if hasattr(member, 'birth_date') and member.birth_date:
                     age_num = service.calculate_age(member.birth_date)
-                    age_str = pluralize_years(age_num)  
-                    
+                    age_str = pluralize_years(age_num)
+
                     death_info = f" (ушел {member.death_date.strftime('%d.%m.%Y')})" if member.death_date else ""
                     gender_info = f" ({member.gender})" if member.gender else ""
-                    
+
                     message += f"• {member.name}{gender_info} - {member.birth_date.strftime('%d.%m.%Y')} ({age_str}){death_info}\n"
                 else:
                     message += f"• {member.name}\n"
@@ -369,11 +368,11 @@ class FamilyBot:
         try:
             service = NotificationService(db)
             birthdays, events, death_anniversaries = service.get_today_events()
-            
+
             # Логирование для сервера (чисто)
             if birthdays or events or death_anniversaries:
                  print(f"INFO: Обнаружены события на сегодня: ДР={len(birthdays)}, События={len(events)}, Смерти={len(death_anniversaries)}")
-            
+
             # Проверяем все три списка
             if not birthdays and not events and not death_anniversaries:
                 await self.application.bot.send_message(
@@ -384,7 +383,7 @@ class FamilyBot:
 
             # --- 1. Отправка дней рождения (Birthdays) ---
             for member in birthdays:
-                # 🟢 ШАГ 1: ОТПРАВКА АНИМАЦИИ
+                # 🟢 ШАГ 1: ОТПРАВКА АНИМАЦИИ (ТОРТ)
                 try:
                     await self.application.bot.send_message(
                         chat_id=chat_id,
@@ -392,40 +391,40 @@ class FamilyBot:
                     )
                 except Exception as e:
                     print(f"❌ Предупреждение: Не удалось отправить эмодзи-анимацию: {e}")
-                    
-                # 🟢 ШАГ 2: ОТПРАВКА ИНФОРМАЦИОННОГО СООБЩЕНИЯ (как раньше)
-            message = service.format_birthday_message(member)
-                if member.photo_file_id:
-                     await self.application.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=member.photo_file_id,
-                        caption=message,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
-                    await self.application.bot.send_message(
-                        chat_id=chat_id,
-                        text=message,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                await asyncio.sleep(0.5)
+
+                # 🟢 ШАГ 2: ОТПРАВКА ИНФОРМАЦИОННОГО СООБЩЕНИЯ
+                message = service.format_birthday_message(member)
+                if member.photo_file_id:
+                     await self.application.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=member.photo_file_id,
+                        caption=message,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                else:
+                    await self.application.bot.send_message(
+                        chat_id=chat_id,
+                        text=message,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                await asyncio.sleep(0.5)
 
             # --- 2. Отправка других событий (Events) ---
             for event in events:
                 message = service.format_event_message(event)
-                photo_id = service.get_event_photo_id(event) 
+                photo_id = service.get_event_photo_id(event)
 
-                if isinstance(photo_id, str) and photo_id.strip(): 
+                if isinstance(photo_id, str) and photo_id.strip():
                     await self.application.bot.send_photo(
-                        chat_id=chat_id, 
+                        chat_id=chat_id,
                         photo=photo_id,
                         caption=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 else:
                     await self.application.bot.send_message(
-                        chat_id=chat_id, 
-                        text=message, 
+                        chat_id=chat_id,
+                        text=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 await asyncio.sleep(0.5)
@@ -434,17 +433,17 @@ class FamilyBot:
             for member in death_anniversaries:
                 # message генерируется в service и содержит Её/Его
                 message = service.format_death_anniversary_message(member)
-                
+
                 if member.photo_file_id:
                     await self.application.bot.send_photo(
-                        chat_id=chat_id, 
-                        photo=member.photo_file_id, 
-                        caption=message, 
+                        chat_id=chat_id,
+                        photo=member.photo_file_id,
+                        caption=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 else:
                     await self.application.bot.send_message(
-                        chat_id=chat_id, 
+                        chat_id=chat_id,
                         text=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
@@ -458,18 +457,18 @@ class FamilyBot:
                     text="❌ Ошибка при получении данных для уведомления"
                 )
             except Exception:
-                pass 
+                pass
         finally:
             db.close()
 
     def schedule_daily_notifications(self):
         """Настраивает ежедневное уведомление в 9:00 UTC с помощью AsyncIOScheduler."""
-        scheduler = AsyncIOScheduler() 
+        scheduler = AsyncIOScheduler()
 
         scheduler.add_job(
             self.send_daily_reminder,
             'cron',
-            hour=9, 
+            hour=9,
             minute=0
         )
         print("✅ Планировщик ежедневных уведомлений настроен.")
@@ -480,7 +479,7 @@ class FamilyBot:
         target_chat_id = Config.ADMIN_CHAT_ID
         if target_chat_id:
             print(f"⏰ Отправка ежедневного уведомления в чат {target_chat_id}...")
-            await self.send_today_events(target_chat_id) 
+            await self.send_today_events(target_chat_id)
         else:
             print("❌ ADMIN_CHAT_ID не установлен, ежедневное уведомление пропущено.")
 
@@ -488,9 +487,9 @@ class FamilyBot:
 
     def run(self):
         """Запускаем бота через Long Polling и активируем планировщик."""
-        
-        scheduler = self.schedule_daily_notifications() 
-        
+
+        scheduler = self.schedule_daily_notifications()
+
         self.application.post_init = self.set_commands
 
         self.application.job_queue.scheduler = scheduler
