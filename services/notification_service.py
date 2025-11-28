@@ -77,7 +77,7 @@ class NotificationService:
             extract('day', FamilyMember.death_date) == today.day
         ).all()
 
-        return birthdays, events, death_anniversaries  
+        return birthdays, events, death_anniversaries
 
     def calculate_age(self, birth_date):
         """Вычисляем возраст (или возраст, который был бы)"""
