@@ -394,7 +394,7 @@ class FamilyBot:
                     print(f"❌ Предупреждение: Не удалось отправить эмодзи-анимацию: {e}")
                     
                 # 🟢 ШАГ 2: ОТПРАВКА ИНФОРМАЦИОННОГО СООБЩЕНИЯ (как раньше)
-                message = service.format_birthday_message(member)
+            message = service.format_birthday_message(member)
                 
                 if member.photo_file_id:
                      await self.application.bot.send_photo(
