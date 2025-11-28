@@ -13,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- ИМПОРТЫ МОДЕЛЕЙ И БАЗЫ ДАННЫХ (КРИТИЧЕСКИ ВАЖНО) ---
 from database.connection import SessionLocal, engine
-# ВАЖНО: FamilyMember теперь требует поле 'gender'
 from database.models import Base, FamilyMember, FamilyEvent
 from services.notification_service import NotificationService
 from config import Config
@@ -52,14 +51,11 @@ def seed_family():
     """Добавляет начальные данные, только если база ПУСТА."""
     db = SessionLocal()
     try:
-        # ПРИМЕЧАНИЕ: Добавление seed-данных будет работать, только если вы обновили
-        # database/models.py и добавили default='M' для поля gender.
         if db.query(FamilyMember).count() == 0:
             initial_members = [
-                ("Кирилл Краснов", date(1990, 4, 11)), # Предполагается, что в БД дефолт M
+                ("Кирилл Краснов", date(1990, 4, 11)),
             ]
             for name, bday in initial_members:
-                # Временно используем gender='M' для старых данных
                 db.add(FamilyMember(name=name, birth_date=bday, gender='M'))
             db.commit()
             print("✅ Семья добавлена в базу (инициализация).")
@@ -100,6 +96,9 @@ class FamilyBot:
         self.application.add_handler(CommandHandler("add_event", self.add_event))
         self.application.add_handler(CommandHandler("list", self.list_members))
         self.application.add_handler(CommandHandler("set_photo", self.set_photo_command))
+        
+        # 🎯 НОВАЯ КОМАНДА ДЛЯ ФОТО СОБЫТИЙ
+        self.application.add_handler(CommandHandler("set_event_photo", self.set_event_photo_command))
 
         # 🎯 ПОСТОЯННАЯ АДМИН-КОМАНДА /file_id
         self.application.add_handler(CommandHandler("file_id", self.file_id_command))
@@ -118,7 +117,8 @@ class FamilyBot:
             ("list", "👥 Показать всех членов семьи"),
             ("add_member", "➕ Добавить члена семьи (админ)"),
             ("remove_member", "🗑️ Удалить члена семьи (админ)"),
-            ("set_photo", "📸 Инструкция: установить фото (админ)"),
+            ("set_photo", "📸 Установить фото члена семьи (админ)"),
+            ("set_event_photo", "🖼️ Установить фото события (админ)"),
             ("test_notify", "🔔 Проверить уведомления"),
             ("file_id", "🔑 Получить ID файла (админ)"),
         ]
@@ -188,7 +188,7 @@ class FamilyBot:
 
 
     async def set_photo_command(self, update, context):
-        """Инструктирует пользователя, как установить фотографию."""
+        """Инструктирует пользователя, как установить фотографию для члена семьи."""
         await update.message.reply_text(
             "📸 Чтобы установить фотографию для члена семьи:\n\n"
             "1. Найдите сообщение, где вы <b>добавили</b> этого члена семьи (через <code>/add_member</code>).\n"
@@ -197,35 +197,80 @@ class FamilyBot:
             parse_mode=ParseMode.HTML
         )
 
+    async def set_event_photo_command(self, update, context):
+        """Инструктирует пользователя, как установить фотографию для события."""
+        if not self.is_admin_chat(update.message.chat_id):
+            return await update.message.reply_text("❌ **Доступ запрещен!** Эта команда только для администратора.", parse_mode=ParseMode.MARKDOWN)
+
+        await update.message.reply_text(
+            "📸 Чтобы установить фотографию для **события**:\n\n"
+            "1. **Ответьте (Reply)** на *любое* сообщение командой: <code>/set_event_photo Название События</code>\n"
+            "2. **Ответьте (Reply)** на вашу же команду <code>/set_event_photo...</code> **самой фотографией!**\n\n"
+            "**Важно:** Название должно совпадать с названием события, которое вы ввели при его создании.",
+            parse_mode=ParseMode.HTML
+        )
+
     async def handle_photo_reply(self, update, context):
-        """Обрабатывает фотографию, отправленную в ответ на команду /set_photo."""
+        """Обрабатывает фотографию, отправленную в ответ на команду /set_photo ИЛИ /set_event_photo."""
         if not self.is_admin_chat(update.message.chat_id): return
         if not update.message.reply_to_message: return
 
         original_message = update.message.reply_to_message.text
-        if not original_message or not original_message.startswith('/set_photo'): return
-
-        args = original_message.split()[1:]
-        if len(args) < 2:
-            return await update.message.reply_text("❌ **Не удалось определить имя.** Используйте формат `/set_photo Имя Фамилия`", parse_mode=ParseMode.MARKDOWN)
-
-        name_to_find = " ".join(args).strip()
+        if not original_message: return
+        
         photo_file_id = update.message.photo[-1].file_id
-
         db = SessionLocal()
+
         try:
-            member = db.query(FamilyMember).filter(FamilyMember.name == name_to_find).first()
-            if member:
-                member.photo_file_id = photo_file_id
-                db.commit()
-                await update.message.reply_text(f"📸 Фотография для **{member.name}** успешно сохранена и привязана!", parse_mode=ParseMode.MARKDOWN)
+            if original_message.startswith('/set_photo'):
+                # --- ЛОГИКА ДЛЯ ЧЛЕНА СЕМЬИ (FamilyMember) ---
+                args = original_message.split()[1:]
+                if len(args) < 2:
+                    return await update.message.reply_text("❌ **Не удалось определить имя члена семьи.**", parse_mode=ParseMode.MARKDOWN)
+
+                name_to_find = " ".join(args).strip()
+                member = db.query(FamilyMember).filter(FamilyMember.name == name_to_find).first()
+                
+                if member:
+                    member.photo_file_id = photo_file_id
+                    db.commit()
+                    await update.message.reply_text(f"📸 Фотография для **{member.name}** успешно сохранена и привязана!", parse_mode=ParseMode.MARKDOWN)
+                else:
+                    await update.message.reply_text(f"❌ Член семьи с именем **{name_to_find}** не найден.", parse_mode=ParseMode.MARKDOWN)
+
+            elif original_message.startswith('/set_event_photo'):
+                # --- ЛОГИКА ДЛЯ СОБЫТИЯ (FamilyEvent) ---
+                args = original_message.split()[1:]
+                if not args:
+                    return await update.message.reply_text("❌ **Не удалось определить название события.**", parse_mode=ParseMode.MARKDOWN)
+                
+                title_to_find = " ".join(args).strip().strip('"\'') # Учитываем кавычки
+                
+                event = db.query(FamilyEvent).filter(FamilyEvent.title == title_to_find).first()
+                
+                if event:
+                    # Добавляем ID в массив photo_ids, если его нет
+                    if event.photo_ids is None:
+                        event.photo_ids = []
+                    
+                    if photo_file_id not in event.photo_ids:
+                        event.photo_ids.append(photo_file_id)
+                        db.commit()
+                        await update.message.reply_text(f"📸 Фотография успешно добавлена к событию **\"{event.title}\"**!", parse_mode=ParseMode.MARKDOWN)
+                    else:
+                        await update.message.reply_text(f"⚠️ Эта фотография уже привязана к событию **\"{event.title}\"**.", parse_mode=ParseMode.MARKDOWN)
+                else:
+                    await update.message.reply_text(f"❌ Событие с названием **\"{title_to_find}\"** не найдено.", parse_mode=ParseMode.MARKDOWN)
             else:
-                await update.message.reply_text(f"❌ Член семьи с именем **{name_to_find}** не найден.", parse_mode=ParseMode.MARKDOWN)
+                 # Игнорировать другие ответы на фото
+                 return
+
         except Exception as e:
             db.rollback()
             await update.message.reply_text(f"❌ Произошла ошибка при сохранении фото: {e}")
         finally:
             db.close()
+
 
     async def remove_member(self, update, context):
         """Удаляет члена семьи из базы данных по имени и фамилии."""
@@ -265,7 +310,7 @@ class FamilyBot:
         args = context.args
         db = SessionLocal()
 
-        # 🎯 ИСПРАВЛЕНИЕ: Теперь ожидаем 4 или 5 аргументов (Имя, Фамилия, Пол, ДР, [ДС])
+        # 🎯 Ожидаем 4 или 5 аргументов (Имя, Фамилия, Пол, ДР, [ДС])
         if len(args) < 4 or len(args) > 5:
             return await update.message.reply_text(
                 "❌ **Неверный формат команды!**\n\n"
@@ -282,7 +327,7 @@ class FamilyBot:
         birth_date_str = args[3]
         death_date_str = args[4] if len(args) == 5 else None
 
-        # 🎯 ИСПРАВЛЕНИЕ: Проверка корректности пола
+        # Проверка корректности пола
         if gender not in ['M', 'F']:
              return await update.message.reply_text(
                 "❌ **Ошибка:** Пол должен быть указан как **M** (Мужчина) или **F** (Женщина).",
@@ -297,7 +342,7 @@ class FamilyBot:
             birth_date = datetime.strptime(birth_date_str, '%d.%m.%Y').date()
             if death_date_str: death_date = datetime.strptime(death_date_str, '%d.%m.%Y').date()
 
-            # 🎯 ИСПРАВЛЕНИЕ: Добавляем пол в модель
+            # Добавляем пол в модель
             new_member = FamilyMember(
                 name=name,
                 birth_date=birth_date,
@@ -398,12 +443,13 @@ class FamilyBot:
         try:
             event_date = datetime.strptime(event_date_str, '%d.%m.%Y').date()
 
-            # 🎯 ИСПРАВЛЕНИЕ: Используем event_date и event_type
+            # 🎯 ИСПРАВЛЕНИЕ: Используем event_date, event_type И добавляем photo_ids=[]
             new_event = FamilyEvent(
                 title=title,
                 event_date=event_date,
                 event_type=event_type, 
-                description=description
+                description=description,
+                photo_ids=[] # Инициализируем пустым массивом для возможности дальнейшего добавления фото
             )
             db.add(new_event)
             db.commit()
