@@ -383,24 +383,34 @@ class FamilyBot:
                 return
 
             # --- 1. Отправка дней рождения (Birthdays) ---
-            for member in birthdays: 
-                # message генерируется в service и содержит Ей/Ему
-                message = service.format_birthday_message(member)
-                
-                if member.photo_file_id:
-                     await self.application.bot.send_photo(
-                        chat_id=chat_id, 
-                        photo=member.photo_file_id,
-                        caption=message,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
+            for member in birthdays: 
+                # 🟢 ШАГ 1: ОТПРАВКА АНИМАЦИИ
+                try:
                     await self.application.bot.send_message(
-                        chat_id=chat_id, 
-                        text=message, 
-                        parse_mode=ParseMode.MARKDOWN
+                        chat_id=chat_id,
+                        text="🎂", # Это запускает полноэкранную анимацию!
                     )
-                await asyncio.sleep(0.5)
+                except Exception as e:
+                    print(f"❌ Предупреждение: Не удалось отправить эмодзи-анимацию: {e}")
+                    
+                # 🟢 ШАГ 2: ОТПРАВКА ИНФОРМАЦИОННОГО СООБЩЕНИЯ (как раньше)
+                # message генерируется в service и содержит Ей/Ему
+                message = service.format_birthday_message(member)
+                
+                if member.photo_file_id:
+                     await self.application.bot.send_photo(
+                        chat_id=chat_id, 
+                        photo=member.photo_file_id,
+                        caption=message,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                else:
+                    await self.application.bot.send_message(
+                        chat_id=chat_id, 
+                        text=message, 
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                await asyncio.sleep(0.5)
 
             # --- 2. Отправка других событий (Events) ---
             for event in events:
