@@ -395,7 +395,6 @@ class FamilyBot:
                     
                 # 🟢 ШАГ 2: ОТПРАВКА ИНФОРМАЦИОННОГО СООБЩЕНИЯ (как раньше)
             message = service.format_birthday_message(member)
-                
                 if member.photo_file_id:
                      await self.application.bot.send_photo(
                         chat_id=chat_id,
