@@ -346,24 +346,37 @@ class FamilyBot:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        # Обработка аргументов (Название, Дата, Описание)
-        event_date_str = args[-1]
+        date_index = -1
+        event_date_str = None
+        for i, arg in enumerate(args):
+            # Проверяем, выглядит ли аргумент как ДД.ММ.ГГГГ
+            if len(arg) == 10 and arg.replace('.', '').isdigit() and arg.count('.') == 2:
+                event_date_str = arg
+                date_index = i
+                break
+        
+        if event_date_str is None:
+            # Это должно быть обработано проверкой len(args) < 2, но лучше перестраховаться.
+            return await update.message.reply_text(
+                "❌ **Ошибка парсинга:** Не удалось найти дату в формате **ДД.ММ.ГГГГ** в команде.",
+                parse_mode=ParseMode.MARKDOWN
+            )
 
-        # Если аргументов 3 или больше, то первый — название, последний — дата, остальное — описание
-        if len(args) > 2:
-            # Название может быть в кавычках или без
-            title = args[0]
-            description = " ".join(args[1:-1])
-        elif len(args) == 2:
-            # Название и Дата
-            title = args[0]
-            description = ""
-        else:
-             # Это не должно случиться благодаря проверке len(args) < 2
-             return
+        # 1. Формируем Описание (все после даты)
+        description = " ".join(args[date_index+1:])
+        
+        # 2. Формируем Название (все до даты)
+        title_parts = args[:date_index]
+        title = " ".join(title_parts).strip().strip('"\'')
 
-        # Убираем кавычки, если они есть
-        title = title.strip('"\'')
+        # Если название пустое (только дата и описание)
+        if not title:
+             return await update.message.reply_text(
+                "❌ **Неверный формат команды!**\n\n"
+                "Название события не может быть пустым. Используйте формат:\n"
+                "`/add_event \"Название события\" ДД.ММ.ГГГГ [Описание]`",
+                parse_mode=ParseMode.MARKDOWN
+            )
 
         try:
             event_date = datetime.strptime(event_date_str, '%d.%m.%Y').date()
