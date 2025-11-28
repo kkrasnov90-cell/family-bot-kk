@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import pymorphy3 
 
 # Убедитесь, что импорты ниже верны для ваших моделей
-from database.models import FamilyMember, FamilyEvent, EventType 
+from database.models import FamilyMember, FamilyEvent, EventType
 
 # 🎯 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО СКЛОНЕНИЯ
 def pluralize_years(years: int) -> str:
