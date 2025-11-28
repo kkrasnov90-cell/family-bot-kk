@@ -2,9 +2,11 @@ import json
 from datetime import datetime, date
 from sqlalchemy import extract
 from sqlalchemy.orm import Session
+# 1. НОВЫЙ ИМПОРТ
+import pymorphy3 
+
 # Убедитесь, что импорты ниже верны для ваших моделей
-# ВАЖНО: FamilyMember должен быть обновлен для поля gender
-from database.models import FamilyMember, FamilyEvent, EventType 
+from database.models import FamilyMember, FamilyEvent, EventType 
 
 # 🎯 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО СКЛОНЕНИЯ
 def pluralize_years(years: int) -> str:
@@ -21,8 +23,33 @@ def pluralize_years(years: int) -> str:
 class NotificationService:
     def __init__(self, db: Session):
         self.db = db
+        # 2. ИНИЦИАЛИЗАЦИЯ PYMORPHY3
+        self.morph = pymorphy3.MorphAnalyzer()
+
+    # 3. НОВЫЙ МЕТОД СКЛОНЕНИЯ
+    def get_genitive_name(self, name: str) -> str:
+        """Склоняет полное имя (Имя Фамилия) в Родительный падеж (кого? чего?)."""
+        words = name.split()
+        
+        # Склоняем каждое слово в Родительный падеж
+        declined_words = []
+        for word in words:
+            parsed_word = self.morph.parse(word)[0]
+            # 'gent' - это Родительный падеж (Genitive)
+            declined_word = parsed_word.inflect({'gent'})
+            
+            # Если склонение прошло успешно, используем его, иначе оставляем слово как есть
+            if declined_word:
+                # Капитализируем первое слово, чтобы гарантировать правильный регистр
+                declined_words.append(declined_word.word.capitalize())
+            else:
+                declined_words.append(word)
+                
+        return " ".join(declined_words)
+
 
     def get_today_events(self):
+        # ... (метод get_today_events остается без изменений)
         """
         Получаем события на сегодня:
         - Дни рождения (для всех, и живых, и ушедших).
@@ -45,12 +72,12 @@ class NotificationService:
 
         # 🕯️ Годовщины смерти сегодня
         death_anniversaries = self.db.query(FamilyMember).filter(
-            FamilyMember.death_date != None,  # Фильтр: только умершие
+            FamilyMember.death_date != None, 
             extract('month', FamilyMember.death_date) == today.month,
             extract('day', FamilyMember.death_date) == today.day
         ).all()
 
-        return birthdays, events, death_anniversaries  
+        return birthdays, events, death_anniversaries  
 
     def calculate_age(self, birth_date):
         """Вычисляем возраст (или возраст, который был бы)"""
@@ -63,38 +90,48 @@ class NotificationService:
         return today.year - event_date.year
 
     def format_birthday_message(self, member):
-        """Форматируем сообщение о дне рождения (с учетом статуса и пола)"""
+        """
+        Форматируем сообщение о дне рождения (с учетом статуса и пола) 
+        используя склонение.
+        """
         age = self.calculate_age(member.birth_date)
         age_str = pluralize_years(age)
         
-        # 🎯 НОВОЕ ИСПРАВЛЕНИЕ: Определение местоимений
+        # 4. ИСПОЛЬЗУЕМ СКЛОНЕНИЕ: Получаем "Кирилла Краснова"
+        declined_name = self.get_genitive_name(member.name)
+        
+        # Определение местоимений
         if member.gender == 'F':
             # Женщина
-            pronoun_case_1 = "Ей"
-            pronoun_case_2 = "ее" # Мы помним и любим ее (винительный падеж)
+            pronoun_age = "Ей"
+            pronoun_case_2 = "ее" 
         else: 
             # Мужчина или пол не указан (дефолт 'M')
-            pronoun_case_1 = "Ему"
-            pronoun_case_2 = "его" # Мы помним и любим его (винительный падеж)
+            pronoun_age = "Ему"
+            pronoun_case_2 = "его" 
 
         if member.death_date:
             # Формат для ушедших
             return (
-                f"🕯️ Сегодня был бы день рождения **{member.name}**!\n"
-                f"Мы помним и любим {pronoun_case_2}. {pronoun_case_1} исполнилось бы {age_str}. 🙏"
+                f"🕯️ Сегодня был бы день рождения **{declined_name}**!\n" # <--- СКЛОНЕНИЕ
+                f"Мы помним и любим {pronoun_case_2}. {pronoun_age} исполнилось бы {age_str}. 🙏"
             )
         else:
             # Формат для живых
-            return f"🎉 Сегодня день рождения **{member.name}**!\n{pronoun_case_1} исполняется {age_str}! 🎂"
+            return (
+                f"🎉 Сегодня день рождения **{declined_name}**!\n" # <--- СКЛОНЕНИЕ
+                f"{pronoun_age} исполняется {age_str}! 🎂"
+            )
 
+    # ... (Остальные методы format_event_message, format_death_anniversary_message и get_event_photo_id остаются без изменений)
     def format_event_message(self, event: FamilyEvent) -> str:
         """Форматирует сообщение об уведомлении о годовщине события."""
         
-        years_passed = self.calculate_years_passed(event.event_date) 
+        years_passed = self.calculate_years_passed(event.event_date) 
         years_str = pluralize_years(years_passed)
         
         message = (
-            f"🎉 **Сегодня {years_str}** со **знаменательной** даты: **{event.title}**! \n" 
+            f"🎉 **Сегодня {years_str}** со **знаменательной** даты: **{event.title}**! \n" 
             f"Событие **состоялось** **{event.event_date.strftime('%d.%m.%Y')}**."
         )
         return message
