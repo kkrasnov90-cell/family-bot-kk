@@ -383,7 +383,7 @@ class FamilyBot:
                 return
 
             # --- 1. Отправка дней рождения (Birthdays) ---
-            for member in birthdays: 
+            for member in birthdays:
                 # 🟢 ШАГ 1: ОТПРАВКА АНИМАЦИИ
                 try:
                     await self.application.bot.send_message(
@@ -399,15 +399,15 @@ class FamilyBot:
                 
                 if member.photo_file_id:
                      await self.application.bot.send_photo(
-                        chat_id=chat_id, 
+                        chat_id=chat_id,
                         photo=member.photo_file_id,
                         caption=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 else:
                     await self.application.bot.send_message(
-                        chat_id=chat_id, 
-                        text=message, 
+                        chat_id=chat_id,
+                        text=message,
                         parse_mode=ParseMode.MARKDOWN
                     )
                 await asyncio.sleep(0.5)
