@@ -2,6 +2,8 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+load_dotenv()
 
 # 1. Считываем переменную. Если она не найдена (вернет None),
 #    мы прерываем выполнение, а не передаем None в create_engine.

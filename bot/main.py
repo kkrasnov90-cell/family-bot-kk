@@ -3,7 +3,7 @@ import os
 from datetime import date, datetime
 import secrets
 import asyncio
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.constants import ParseMode
 from telegram.request import HTTPXRequest
@@ -74,10 +74,12 @@ class FamilyBot:
     def __init__(self):
         self.request_config = HTTPXRequest(read_timeout=60.0)
 
-        self.application = Application.builder() \
+        # создаём Application напрямую
+        self.application = ApplicationBuilder() \
             .token(Config.BOT_TOKEN) \
             .request(self.request_config) \
             .build()
+
         self.setup_handlers()
 
     # 🎯 ФУНКЦИЯ: Проверяет права администратора
@@ -132,10 +134,11 @@ class FamilyBot:
     async def start(self, update, context):
         GREETING_PHOTO_ID = getattr(Config, 'GREETING_PHOTO_ID', None)
         message_text = (
-            "**👋 С возвращением! Я Семейный Хранитель.**\n\n"
+            "**👋 Привет! Я Цифровой Хранитель Семейной Памяти.**\n\n"
             "Моя задача — хранить в памяти всё, что важно для вашей семьи, и делиться этим с вами в нужный момент.\n\n"
+            "Наше положение на земле поистине удивительно. Каждый появляется на ней на короткий миг, без понятной цели , хотя некоторым удается цель придумать . Но с точки зрения обыденной жизни, очевидно одно: мы живем для других людей и более всего для тех, от чьих улыбок и благополучия зависит наше собственное счастье! \n\n"
             "**🌟 Как я работаю?**\n"
-            "Я работаю автоматически и тихо, отправляя уведомления **каждый день в 9:00 UTC**:\n"
+            "Я работаю автоматически и тихо, отправляя уведомления **каждый день в 12:00**:\n"
             "• **Дни рождения** 🎂\n"
             "• **Годовщины** 💍\n"
             "• **Важные события** 🗓️\n\n"
