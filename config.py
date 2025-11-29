@@ -17,3 +17,9 @@ class Config:
 
     # ⏰ Время отправки уведомлений (9:00 утра)
     NOTIFICATION_TIME =  "09:00"
+    # 📸 ID ФОТОГРАФИИ для приветствия в команде /start
+    # Вставьте сюда ID, полученный через команду /file_id
+    GREETING_PHOTO_ID = 'AgACAgIAAxkBAAIBEmki_F_A1RzIwZ9i3Cc8L10TWSK6AAKvC2sbu_EYSdCjHZXUbZG2AQADAgADeQADNgQ'
+
+
+
