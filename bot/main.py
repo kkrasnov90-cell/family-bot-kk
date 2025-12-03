@@ -83,7 +83,7 @@ class FamilyBot:
         self.application = ApplicationBuilder() \
             .token(Config.BOT_TOKEN) \
             .request(self.request_config) \
-            .get_updates_timeout(30) \
+            .get_updates_pool_timeout(30) \
             .build()
 
         self.setup_handlers()
