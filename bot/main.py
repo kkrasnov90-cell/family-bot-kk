@@ -76,15 +76,14 @@ seed_family()
 
 class FamilyBot:
     def __init__(self):
+        # ❌ УДАЛЕНО: Исправления таймаута Bad Gateway
         self.request_config = HTTPXRequest(read_timeout=60.0)
 
         # создаём Application напрямую
-        # 🎯 ИЗМЕНЕНИЕ 1: Добавлен get_updates_timeout(30) для устранения Bad Gateway
         self.application = ApplicationBuilder() \
             .token(Config.BOT_TOKEN) \
             .request(self.request_config) \
-            .get_updates_pool_timeout(30) \
-            .build()
+            .build()  # ❌ УДАЛЕНО: .get_updates_pool_timeout(30)
 
         self.setup_handlers()
 
@@ -507,7 +506,7 @@ class FamilyBot:
         try:
             service = NotificationService(db)
 
-            # 🎯 ИЗМЕНЕНИЕ 2: Получаем общее количество членов семьи
+            # ✅ ДОБАВЛЕНО: Получаем общее количество членов семьи
             member_count = db.query(FamilyMember).count()
             members = db.query(FamilyMember).all()
 
@@ -515,7 +514,7 @@ class FamilyBot:
                 await update.message.reply_text("👥 В базе пока нет членов семьи")
                 return
 
-            # 🎯 ИЗМЕНЕНИЕ 3: Включаем общее количество в заголовок
+            # ✅ ДОБАВЛЕНО: Включаем общее количество в заголовок
             message = f"👥 **Члены семьи (Всего: {member_count})**:\n\n"
 
             for member in members:
