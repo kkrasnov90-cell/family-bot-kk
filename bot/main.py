@@ -94,44 +94,63 @@ class FamilyBot:
         return str(chat_id) == str(Config.ADMIN_CHAT_ID)
 
     def setup_handlers(self):
-        """Настраиваем обработчики команд"""
+        # ----------------------------------------------------
+        # 1. ОБЩИЕ КОМАНДЫ (Работают везде)
+        # ----------------------------------------------------
         self.application.add_handler(CommandHandler("start", self.start))
-        self.application.add_handler(CommandHandler("today", self.today))
-        self.application.add_handler(CommandHandler("test_notify", self.test_notify))
-        self.application.add_handler(CommandHandler("add_member", self.add_member))
-        self.application.add_handler(CommandHandler("remove_member", self.remove_member))
-        self.application.add_handler(CommandHandler("add_event", self.add_event))
         self.application.add_handler(CommandHandler("list", self.list_members))
-        self.application.add_handler(CommandHandler("set_photo", self.set_photo_command))
+        self.application.add_handler(CommandHandler("today", self.today))
 
-        # 🎯 НОВАЯ КОМАНДА ДЛЯ ФОТО СОБЫТИЙ
-        self.application.add_handler(CommandHandler("set_event_photo", self.set_event_photo_command))
+        # ----------------------------------------------------
+        # 2. ТЕХНИЧЕСКИЕ КОМАНДЫ (ТОЛЬКО для ADMIN_CHAT_ID)
+        # ----------------------------------------------------
 
-        # 🎯 ПОСТОЯННАЯ АДМИН-КОМАНДА /file_id
-        self.application.add_handler(CommandHandler("file_id", self.file_id_command))
+        # 1. Создаем фильтр, используя ID администратора
+        # ❗ ВАЖНО: ID должен быть целым числом (int)
+        admin_chat_id = int(Config.ADMIN_CHAT_ID)
+        admin_filter = filters.Chat(chat_id=admin_chat_id)
 
-        # Обработчик ответов на фото
+        # 2. Применяем фильтр ко всем командам управления:
+        self.application.add_handler(
+            CommandHandler("add_member", self.add_member, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("remove_member", self.remove_member, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("add_event", self.add_event, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("set_photo", self.set_photo_command, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("set_event_photo", self.set_event_photo_command, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("file_id", self.file_id_command, filters=admin_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("test_notify", self.test_notify, filters=admin_filter)
+        )
+
+        # Блокируем обработку фото-ответов:
         self.application.add_handler(MessageHandler(
-            filters.PHOTO & filters.REPLY, self.handle_photo_reply
+            filters.PHOTO & filters.REPLY & admin_filter, self.handle_photo_reply
         ))
 
     async def set_commands(self, application):
-        """Устанавливает список команд в меню Telegram."""
+        """Устанавливает список команд в меню Telegram только для общих команд."""
         commands = [
             ("start", "👋 Приветствие и цели бота"),
             ("today", "📅 События на сегодня"),
-            ("add_event", "➕ Добавить семейное событие (админ)"),
             ("list", "👥 Показать всех членов семьи"),
-            ("add_member", "➕ Добавить члена семьи (админ)"),
-            ("remove_member", "🗑️ Удалить члена семьи (админ)"),
-            ("set_photo", "📸 Установить фото члена семьи (админ)"),
-            ("set_event_photo", "🖼️ Установить фото события (админ)"),
-            ("test_notify", "🔔 Проверить уведомления"),
-            ("file_id", "🔑 Получить ID файла (админ)"),
         ]
-
         await self.application.bot.set_my_commands(commands)
         print("✅ Меню команд Telegram успешно установлено.")
+
+        # ❗ Если вы хотите иметь меню команд и для себя, его нужно установить отдельно:
+        # await self.application.bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=int(Config.ADMIN_CHAT_ID)))
+        # Но для простоты сейчас лучше оставить только публичные команды.
 
     # --- ХЕНДЛЕРЫ КОМАНД ---
 
