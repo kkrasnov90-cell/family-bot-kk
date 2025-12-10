@@ -77,13 +77,15 @@ seed_family()
 class FamilyBot:
     def __init__(self):
         # ❌ УДАЛЕНО: Исправления таймаута Bad Gateway
-        self.request_config = HTTPXRequest(read_timeout=60.0)
+        self.request_config = HTTPXRequest(read_timeout=35.0)
 
-        # создаём Application напрямую
+        # 2. Устанавливаем Polling timeout на 30 секунд.
+        # Это предотвратит превышение тайм-аутов прокси-серверов.
         self.application = ApplicationBuilder() \
             .token(Config.BOT_TOKEN) \
             .request(self.request_config) \
-            .build()  # ❌ УДАЛЕНО: .get_updates_pool_timeout(30)
+            .get_updates_pool_timeout(30) \  # <-- Ключевое изменение
+            .build()
 
         self.setup_handlers()
 
